@@ -15,7 +15,9 @@ const transactionSchema = new mongoose.Schema(
       enum: ['fixed', 'periodic', 'variable'],
     },
     importantDate: { type: Boolean, default: false },
+    seriesId: { type: String, index: true },
     debtId: { type: mongoose.Schema.Types.ObjectId, ref: 'Debt' },
+    savingsGoalId: { type: mongoose.Schema.Types.ObjectId, ref: 'SavingsGoal', index: true },
   },
   { timestamps: true },
 );

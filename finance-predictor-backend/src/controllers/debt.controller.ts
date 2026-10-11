@@ -43,6 +43,58 @@ export const createDebt = async (
   }
 };
 
+export const updateDebt = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const doc = await Debt.findById(req.params.id);
+    if (!doc) {
+      res.status(404).json({ message: 'Debt not found' });
+      return;
+    }
+    if (typeof req.body.title === 'string') {
+      doc.title = req.body.title;
+      await Transaction.updateMany({ debtId: doc._id }, { title: req.body.title });
+    }
+    if (typeof req.body.totalAmount === 'number') {
+      doc.totalAmount = req.body.totalAmount;
+      if (req.body.totalAmount === 0) {
+        doc.monthlyPayment = 0;
+        await Transaction.updateMany({ debtId: doc._id }, { amount: 0 });
+      }
+    }
+    if (typeof req.body.monthlyPayment === 'number') {
+      doc.monthlyPayment = req.body.monthlyPayment;
+      await Transaction.updateMany({ debtId: doc._id }, { amount: req.body.monthlyPayment });
+    }
+    await doc.save();
+    res.status(200).json(doc);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteDebt = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const doc = await Debt.findById(req.params.id);
+    if (!doc) {
+      res.status(404).json({ message: 'Debt not found' });
+      return;
+    }
+    await Transaction.deleteMany({ debtId: doc._id });
+    await doc.deleteOne();
+    res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const listDebts = async (
   _req: Request,
   res: Response,

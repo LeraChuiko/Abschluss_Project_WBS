@@ -1,4 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
+import { Debt } from '../models/Debt.ts';
+import { SavingsGoal } from '../models/SavingsGoal.ts';
 import { Transaction } from '../models/Transaction.ts';
 
 export const createTransaction = async (
@@ -7,7 +9,15 @@ export const createTransaction = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
-    const doc = await Transaction.create(req.body);
+    const date =
+      typeof req.body.date === 'string'
+        ? new Date(`${req.body.date}T00:00:00.000Z`)
+        : req.body.date;
+    const seriesId =
+      typeof req.body.seriesId === 'string' && req.body.seriesId
+        ? req.body.seriesId
+        : crypto.randomUUID();
+    const doc = await Transaction.create({ ...req.body, date, seriesId });
     res.status(201).json(doc);
   } catch (error) {
     next(error);
@@ -37,7 +47,42 @@ export const listTransactions = async (
   }
 };
 
-export const deleteTransaction = async (
+const monthUtc = (date: Date): string => date.toISOString().slice(0, 7);
+
+const spreadDebtLeftover = async (debtId: unknown, fromMonth: string): Promise<void> => {
+  const debt = await Debt.findById(debtId);
+  if (!debt) {
+    return;
+  }
+  const related = await Transaction.find({ debtId }).sort({ date: 1 });
+  const paidSoFar = related
+    .filter((item) => monthUtc(item.date) <= fromMonth)
+    .reduce((sum, item) => sum + item.amount, 0);
+  let leftover = Math.max(0, Number((debt.totalAmount - paidSoFar).toFixed(2)));
+  const later = related.filter((item) => monthUtc(item.date) > fromMonth);
+  const rate = debt.monthlyPayment > 0 ? debt.monthlyPayment : leftover;
+  for (let i = 0; i < later.length; i += 1) {
+    const row = later[i];
+    const isLast = i === later.length - 1;
+    const next = leftover <= 0 ? 0 : isLast ? leftover : Math.min(rate, leftover);
+    const amount = Number(next.toFixed(2));
+    leftover = Math.max(0, Number((leftover - amount).toFixed(2)));
+    await Transaction.updateOne({ _id: row._id }, { $set: { amount } });
+  }
+};
+
+const berlinMonthNow = (): string => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Berlin',
+    year: 'numeric',
+    month: '2-digit',
+  }).formatToParts(new Date());
+  const year = parts.find((part) => part.type === 'year')?.value;
+  const month = parts.find((part) => part.type === 'month')?.value;
+  return `${year}-${month}`;
+};
+
+export const updateTransaction = async (
   req: Request,
   res: Response,
   next: NextFunction,
@@ -48,16 +93,117 @@ export const deleteTransaction = async (
       res.status(404).json({ message: 'Transaction not found' });
       return;
     }
-    if (doc.expenseBlock === 'periodic' || doc.debtId) {
-      res.status(409).json({ message: 'Raten können nicht einzeln gelöscht werden' });
+
+    const docMonth = monthUtc(doc.date);
+    if (docMonth < berlinMonthNow()) {
+      res.status(409).json({ message: 'Vergangene Monate können nicht geändert werden' });
       return;
     }
-    if (doc.expenseBlock === 'fixed') {
-      res.status(409).json({ message: 'Pflichtausgaben können nicht gelöscht werden' });
-      return;
+
+    if (typeof req.body.amount === 'number' && doc.debtId) {
+      const debt = await Debt.findById(doc.debtId);
+      if (debt) {
+        const related = await Transaction.find({ debtId: doc.debtId });
+        const paidBefore = related
+          .filter((item) => monthUtc(item.date) < docMonth)
+          .reduce((sum, item) => sum + item.amount, 0);
+        const rest = Math.max(0, Number((debt.totalAmount - paidBefore).toFixed(2)));
+        if (req.body.amount > rest) {
+          res.status(400).json({
+            message: `Die Summe ist größer als der Rest. Rest: ${rest.toLocaleString('de-DE', {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })} €`,
+          });
+          return;
+        }
+      }
     }
-    await doc.deleteOne();
-    res.status(204).send();
+
+    if (typeof req.body.amount === 'number' && doc.savingsGoalId) {
+      const goal = await SavingsGoal.findById(doc.savingsGoalId);
+      if (goal) {
+        const related = await Transaction.find({ savingsGoalId: doc.savingsGoalId });
+        const paidOthers = related
+          .filter((item) => String(item._id) !== String(doc._id))
+          .reduce((sum, item) => sum + item.amount, 0);
+        const rest = Math.max(0, Number((goal.targetAmount - paidOthers).toFixed(2)));
+        if (req.body.amount > rest) {
+          res.status(400).json({
+            message: `Die Summe ist größer als der Rest. Rest: ${rest.toLocaleString('de-DE', {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })} €`,
+          });
+          return;
+        }
+      }
+    }
+
+    if (typeof req.body.title === 'string') {
+      doc.title = req.body.title;
+    }
+    if (typeof req.body.amount === 'number') {
+      doc.amount = req.body.amount;
+    }
+    if (typeof req.body.date === 'string') {
+      doc.date = new Date(`${req.body.date}T00:00:00.000Z`);
+    }
+    if (typeof req.body.importantDate === 'boolean') {
+      doc.importantDate = req.body.importantDate;
+    }
+    await doc.save();
+
+    if (typeof req.body.amount === 'number' && doc.type === 'income' && doc.seriesId) {
+      const from = new Date(`${docMonth}-01T00:00:00.000Z`);
+      await Transaction.updateMany(
+        {
+          type: 'income',
+          seriesId: doc.seriesId,
+          date: { $gte: from },
+        },
+        { amount: req.body.amount },
+      );
+    }
+
+    if (
+      typeof req.body.amount === 'number' &&
+      doc.type === 'expense' &&
+      !doc.debtId &&
+      !doc.savingsGoalId
+    ) {
+      const from = new Date(`${docMonth}-01T00:00:00.000Z`);
+      const linked = doc.seriesId
+        ? await Transaction.countDocuments({ seriesId: doc.seriesId })
+        : 0;
+      if (linked > 1 && doc.seriesId) {
+        await Transaction.updateMany(
+          {
+            type: 'expense',
+            seriesId: doc.seriesId,
+            date: { $gte: from },
+          },
+          { amount: req.body.amount },
+        );
+      } else if (doc.expenseBlock === 'fixed') {
+        await Transaction.updateMany(
+          {
+            type: 'expense',
+            expenseBlock: 'fixed',
+            title: doc.title,
+            date: { $gte: from },
+            savingsGoalId: { $exists: false },
+          },
+          { amount: req.body.amount },
+        );
+      }
+    }
+
+    if (typeof req.body.amount === 'number' && doc.debtId) {
+      await spreadDebtLeftover(doc.debtId, docMonth);
+    }
+
+    res.status(200).json(doc);
   } catch (error) {
     next(error);
   }
