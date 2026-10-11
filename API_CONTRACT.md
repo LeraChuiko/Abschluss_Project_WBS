@@ -1,29 +1,27 @@
-# API contract (menu for the frontend)
+# API contract
 
-Think of this file as the restaurant **menu**.
+Base URL: `http://localhost:3000/api`  
+Dates: `YYYY-MM-DD`. Month query: `YYYY-MM`.  
+Protected routes need header `Authorization: Bearer <token>`.
 
-- The **URL** is the dish name (`POST /api/incomes`).
-- The **body** is the order (`date`, `name`, `amount`).
-- The **status** is the kitchen answer (`201` = cooked, `400` = missing field, `404` = not found).
+| Action | Method + URL | Auth | Body / query | Success |
+| --- | --- | --- | --- | --- |
+| Health | `GET /health` | no | — | `200` `{ "ok": true }` |
+| Register | `POST /auth/register` | no | `{ "email", "password", "name?" }` | `201` `{ token, user }` |
+| Login | `POST /auth/login` | no | `{ "email", "password" }` | `200` `{ token, user }` |
+| Me | `GET /auth/me` | yes | — | `200` user |
+| Dashboard | `GET /dashboard?month=YYYY-MM` | yes | — | `200` totals + `balance` |
+| List transactions | `GET /transactions?month=YYYY-MM` | yes | month optional | `200` array |
+| Create transaction | `POST /transactions` | yes | income or expense | `201` |
+| Patch transaction | `PATCH /transactions/:id` | yes | fields | `200` |
+| List debts | `GET /debts` | yes | — | `200` array |
+| Create debt | `POST /debts` | yes | title, total, rate, start, months | `201` |
+| Patch debt | `PATCH /debts/:id` | yes | fields | `200` |
+| Delete debt | `DELETE /debts/:id` | yes | — | `204` |
+| List savings goals | `GET /savings-goals` | yes | — | `200` array |
+| Create savings goal | `POST /savings-goals` | yes | title, targetAmount, imageUrl? | `201` |
+| Patch savings goal | `PATCH /savings-goals/:id` | yes | fields | `200` |
+| Deposit to goal | `POST /savings-goals/:id/deposit` | yes | `{ "amount", "date?" }` | `200` |
 
-If the frontend asks for `/income` (singular) and the backend only knows `/incomes` (plural), the “waiter” cannot find the dish. That is why we write the names **once**, here, and both sides copy them.
-
-Dates in requests: `2026-09-21` (year-month-day). The React form can still **show** `21/09/2026`.
-
-| Action | Method + URL | Body | Success |
-| --- | --- | --- | --- |
-| Server alive? | `GET /api/health` | — | `200` `{ "ok": true }` |
-| Create income | `POST /api/incomes` | `{ "date", "name", "amount" }` | `201` + saved object with `_id` |
-| List incomes | `GET /api/incomes` | — | `200` array |
-| One income | `GET /api/incomes/:id` | — | `200` object or `404` |
-| Edit income | `PUT /api/incomes/:id` | `{ "date", "name", "amount" }` | `200` object or `404` |
-| Delete income | `DELETE /api/incomes/:id` | — | `204` empty or `404` |
-| Production expenses | same pattern under `/api/production-expenses` | `{ "date", "name", "amount", "project" }` | same codes |
-| Mandatory expenses (page 1 table) | `/api/mandatory-expenses` | `{ "date", "name", "amount" }` | same codes |
-| Savings goals | `/api/savings-goals` | `{ "name", "targetAmount", "currentAmount" }` | same codes |
-| Transfer into a goal | `POST /api/savings-goals/:id/transfer` | `{ "amount" }` | `200` updated goal |
-| Buy from a goal | `POST /api/savings-goals/:id/spend` | `{ "amount", "name" }` | `200` updated goal |
-| Debts | `/api/debts` | `{ "name", "totalAmount", "remainingAmount", "monthlyPayment", "nextPaymentDate" }` | same codes |
-| Dashboard numbers | `GET /api/dashboard` | query later | `200` months + totals |
-
-We will fill dashboard query details when we build that route. Until then this table is the source of truth for names.
+Expense `expenseBlock`: `fixed` \| `periodic` \| `variable`.  
+Income `incomeGroup`: `salary` \| `business` \| `freelance` \| `gift` \| `investment`.

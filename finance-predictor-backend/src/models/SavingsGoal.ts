@@ -7,6 +7,7 @@ const savingsGoalSchema = new mongoose.Schema(
     title: { type: String, required: true, trim: true },
     targetAmount: { type: Number, required: true, min: 0 },
     currentAmount: { type: Number, required: true, min: 0, default: 0 },
+    imageUrl: { type: String, trim: true, default: '' },
     payments: {
       type: [
         {

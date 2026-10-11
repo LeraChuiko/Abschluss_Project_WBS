@@ -1,14 +1,15 @@
 import { Router } from 'express';
 import { validate } from '../middleware/validate.ts';
-import { createTransactionSchema } from '../schemas/transaction.schema.ts';
+import { createTransactionSchema, updateTransactionSchema } from '../schemas/transaction.schema.ts';
 import {
   createTransaction,
-  listTransactions,deleteTransaction
+  listTransactions,
+  updateTransaction,
 } from '../controllers/transaction.controller.ts';
 
 const router = Router();
 
 router.get('/', listTransactions);
 router.post('/', validate(createTransactionSchema), createTransaction);
-router.delete('/:id', deleteTransaction);
+router.patch('/:id', validate(updateTransactionSchema), updateTransaction);
 export default router;
