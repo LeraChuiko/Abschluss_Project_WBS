@@ -73,7 +73,7 @@ export function LoginPage() {
         </form>
         <button
           type="button"
-          className="mt-4 text-sm font-medium text-violet-700 hover:underline"
+          className="mt-4 cursor-pointer text-sm font-medium text-violet-700 hover:underline"
           onClick={() => {
             setError('');
             setMode(mode === 'login' ? 'register' : 'login');

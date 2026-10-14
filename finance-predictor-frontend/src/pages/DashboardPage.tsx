@@ -25,7 +25,7 @@ function formatDay(iso: string): string {
 }
 
 export function DashboardPage() {
-  const { year, setYear } = useCalendarPeriod();
+  const { year, setYear, start, end, setStart, setEnd } = useCalendarPeriod();
   const [tables, setTables] = useState<MonthTable[]>([]);
   const [error, setError] = useState('');
 
@@ -37,12 +37,14 @@ export function DashboardPage() {
     ])
       .then(([dash, list]) => {
         setTables(
-          dash.months.map((dashboard) => ({
-            month: dashboard.month,
-            dashboard,
-            incomes: list.filter((t) => t.type === 'income' && t.date.slice(0, 7) === dashboard.month),
-            expenses: list.filter((t) => t.type === 'expense' && t.date.slice(0, 7) === dashboard.month),
-          })),
+          dash.months
+            .filter((dashboard) => dashboard.month >= start && dashboard.month <= end)
+            .map((dashboard) => ({
+              month: dashboard.month,
+              dashboard,
+              incomes: list.filter((t) => t.type === 'income' && t.date.slice(0, 7) === dashboard.month),
+              expenses: list.filter((t) => t.type === 'expense' && t.date.slice(0, 7) === dashboard.month),
+            })),
         );
       })
       .catch((err: Error) => setError(err.message));
@@ -53,7 +55,7 @@ export function DashboardPage() {
     const onReload = () => load();
     window.addEventListener('finance-reload', onReload);
     return () => window.removeEventListener('finance-reload', onReload);
-  }, [year]);
+  }, [year, start, end]);
 
   const periodIncome = tables.reduce((sum, table) => sum + table.dashboard.incomeTotal, 0);
   const periodExpense = tables.reduce((sum, table) => sum + table.dashboard.expenseTotal, 0);
@@ -77,7 +79,14 @@ export function DashboardPage() {
             </li>
           </ul>
         </div>
-        <PeriodFilter year={year} onYear={setYear} />
+        <PeriodFilter
+          year={year}
+          onYear={setYear}
+          start={start}
+          end={end}
+          onStart={setStart}
+          onEnd={setEnd}
+        />
       </div>
 
       {error && <p className="text-red-700">{error}</p>}
@@ -109,7 +118,7 @@ export function DashboardPage() {
       <div className="flex justify-center pt-4">
         <Link
           to="/hinweise"
-          className="rounded-full bg-violet-700 px-6 py-3 text-sm font-semibold text-white"
+          className="cursor-pointer rounded-full bg-violet-700 px-6 py-3 text-sm font-semibold text-white hover:bg-violet-800 active:bg-violet-950"
         >
           Zu den Hinweisen
         </Link>

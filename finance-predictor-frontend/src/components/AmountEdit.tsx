@@ -59,8 +59,8 @@ export function AmountEdit({
     onSave(amount, nextTitle);
   };
 
-  const box = compact ? 'min-w-20 w-20 pr-4' : 'min-w-28 w-28 pr-5';
-  const amountBox = compact ? 'w-20 text-sm' : 'w-28';
+  const box = compact ? 'min-w-0 pr-4' : 'min-w-28 w-28 pr-5';
+  const amountBox = compact ? 'text-sm' : 'w-28';
 
   if (!editing) {
     return (
@@ -72,7 +72,7 @@ export function AmountEdit({
         {canEdit && (
           <button
             type="button"
-            className="absolute top-0 right-0 hidden h-5 w-5 items-center justify-center rounded text-sm text-stone-400 group-hover/line:flex hover:bg-violet-50 hover:text-violet-700"
+            className="absolute top-0 right-0 flex h-5 w-5 items-center justify-center rounded text-sm text-stone-400 hover:bg-violet-50 hover:text-violet-700"
             aria-label="Bearbeiten"
             title="Bearbeiten"
             onClick={() => setEditing(true)}

@@ -147,4 +147,4 @@ export const fieldClass =
   'rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 outline-none focus:border-violet-600';
 
 export const btnClass =
-  'rounded-lg bg-violet-700 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-800';
+  'cursor-pointer rounded-lg bg-violet-700 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-800 active:bg-violet-950';
