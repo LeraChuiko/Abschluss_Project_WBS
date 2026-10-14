@@ -10,8 +10,8 @@ Protected routes need header `Authorization: Bearer <token>`.
 | Register | `POST /auth/register` | no | `{ "email", "password", "name?" }` | `201` `{ token, user }` |
 | Login | `POST /auth/login` | no | `{ "email", "password" }` | `200` `{ token, user }` |
 | Me | `GET /auth/me` | yes | — | `200` user |
-| Dashboard | `GET /dashboard?month=YYYY-MM` | yes | — | `200` totals + `balance` |
-| List transactions | `GET /transactions?month=YYYY-MM` | yes | month optional | `200` array |
+| Dashboard | `GET /dashboard?month=YYYY-MM` or `?year=YYYY` | yes | — | `200` totals, or `{ year, months[] }` |
+| List transactions | `GET /transactions?month=YYYY-MM` or `?year=YYYY` | yes | month/year optional | `200` array |
 | Create transaction | `POST /transactions` | yes | income or expense | `201` |
 | Patch transaction | `PATCH /transactions/:id` | yes | fields | `200` |
 | List debts | `GET /debts` | yes | — | `200` array |
@@ -22,6 +22,9 @@ Protected routes need header `Authorization: Bearer <token>`.
 | Create savings goal | `POST /savings-goals` | yes | title, targetAmount, imageUrl? | `201` |
 | Patch savings goal | `PATCH /savings-goals/:id` | yes | fields | `200` |
 | Deposit to goal | `POST /savings-goals/:id/deposit` | yes | `{ "amount", "date?" }` | `200` |
+| List hints | `GET /hinweise` | yes | — | `200` array |
+| Create hint | `POST /hinweise` | yes | `{ "title", "month", "note?" }` | `201` |
+| Delete hint | `DELETE /hinweise/:id` | yes | — | `204` |
 
 Expense `expenseBlock`: `fixed` \| `periodic` \| `variable`.  
 Income `incomeGroup`: `salary` \| `business` \| `freelance` \| `gift` \| `investment`.

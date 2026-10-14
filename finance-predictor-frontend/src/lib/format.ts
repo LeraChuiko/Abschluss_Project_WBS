@@ -39,6 +39,39 @@ export function monthsInRange(from: string, to: string): string[] {
   return result;
 }
 
+export function hintOccurrences(
+  start: string,
+  end: string,
+  everyMonths: number,
+  customMonths: number[],
+): string[] {
+  const last = end && end >= start ? end : start;
+  if (customMonths.length > 0) {
+    const out: string[] = [];
+    const startY = Number(start.slice(0, 4));
+    const endY = Number(last.slice(0, 4));
+    for (let year = startY; year <= endY; year += 1) {
+      for (const m of [...customMonths].sort((a, b) => a - b)) {
+        const key = `${year}-${String(m).padStart(2, '0')}`;
+        if (key >= start && key <= last) {
+          out.push(key);
+        }
+      }
+    }
+    return out;
+  }
+  if (everyMonths <= 0) {
+    return [start];
+  }
+  const out: string[] = [];
+  let cursor = start;
+  while (cursor <= last) {
+    out.push(cursor);
+    cursor = shiftMonth(cursor, everyMonths);
+  }
+  return out;
+}
+
 export function shiftMonth(month: string, add: number): string {
   const [year, m] = month.split('-').map(Number);
   const date = new Date(Date.UTC(year, m - 1 + add, 1));

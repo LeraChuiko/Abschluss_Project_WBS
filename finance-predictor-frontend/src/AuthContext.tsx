@@ -8,8 +8,8 @@ type AuthSession = { token: string; user: AuthUser };
 type AuthValue = {
   user: AuthUser | null;
   ready: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, name: string) => Promise<void>;
+  login: (email: string, password: string, remember?: boolean) => Promise<void>;
+  register: (email: string, password: string, name: string, remember?: boolean) => Promise<void>;
   logout: () => void;
 };
 
@@ -25,8 +25,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [ready, setReady] = useState(false);
 
-  const applySession = (session: AuthSession) => {
-    setToken(session.token);
+  const applySession = (session: AuthSession, remember = true) => {
+    setToken(session.token, remember);
     setUser(session.user);
   };
 
@@ -57,13 +57,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         user,
         ready,
-        login: async (email, password) => {
-          const session = (await api.login({ email, password })) as AuthSession;
-          applySession(session);
+        login: async (email, password, remember = true) => {
+          const session = (await api.login({ email, password, remember })) as AuthSession;
+          applySession(session, remember);
         },
-        register: async (email, password, name) => {
-          const session = (await api.register({ email, password, name })) as AuthSession;
-          applySession(session);
+        register: async (email, password, name, remember = true) => {
+          const session = (await api.register({ email, password, name, remember })) as AuthSession;
+          applySession(session, remember);
         },
         logout,
       }}

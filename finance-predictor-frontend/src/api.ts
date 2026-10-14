@@ -1,16 +1,18 @@
-const API = 'http://localhost:3000/api';
+const API = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 const TOKEN_KEY = 'finance-token';
 
 export function getToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY);
+  return localStorage.getItem(TOKEN_KEY) ?? sessionStorage.getItem(TOKEN_KEY);
 }
 
-export function setToken(token: string | null): void {
-  if (token) {
-    localStorage.setItem(TOKEN_KEY, token);
-  } else {
-    localStorage.removeItem(TOKEN_KEY);
+export function setToken(token: string | null, remember = true): void {
+  localStorage.removeItem(TOKEN_KEY);
+  sessionStorage.removeItem(TOKEN_KEY);
+  if (!token) {
+    return;
   }
+  const store = remember ? localStorage : sessionStorage;
+  store.setItem(TOKEN_KEY, token);
 }
 
 function headers(): Record<string, string> {
@@ -57,10 +59,16 @@ export const api = {
   dashboard: (month: string) =>
     fetch(`${API}/dashboard?month=${month}`, { headers: headers() }).then((res) => parse(res)),
 
+  dashboardYear: (year: string) =>
+    fetch(`${API}/dashboard?year=${year}`, { headers: headers() }).then((res) => parse(res)),
+
   transactions: (month?: string) => {
     const q = month ? `?month=${month}` : '';
     return fetch(`${API}/transactions${q}`, { headers: headers() }).then((res) => parse(res));
   },
+
+  transactionsYear: (year: string) =>
+    fetch(`${API}/transactions?year=${year}`, { headers: headers() }).then((res) => parse(res)),
 
   createTransaction: (body: object) =>
     fetch(`${API}/transactions`, {
@@ -117,4 +125,23 @@ export const api = {
       headers: headers(),
       body: JSON.stringify(body),
     }).then((res) => parse(res)),
+
+  hinweise: () => fetch(`${API}/hinweise`, { headers: headers() }).then((res) => parse(res)),
+
+  createHinweis: (body: object) =>
+    fetch(`${API}/hinweise`, {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify(body),
+    }).then((res) => parse(res)),
+
+  updateHinweis: (id: string, body: object) =>
+    fetch(`${API}/hinweise/${id}`, {
+      method: 'PATCH',
+      headers: headers(),
+      body: JSON.stringify(body),
+    }).then((res) => parse(res)),
+
+  deleteHinweis: (id: string) =>
+    fetch(`${API}/hinweise/${id}`, { method: 'DELETE', headers: headers() }).then((res) => parse(res)),
 };

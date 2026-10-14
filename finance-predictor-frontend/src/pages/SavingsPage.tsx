@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api.ts';
+import { PeriodFilter, useCalendarPeriod } from '../components/PeriodFilter.tsx';
 import { useFrei } from '../FreiContext.tsx';
 import { btnClass, euro, fieldClass, todayIsoDate, toImageSrc } from '../lib/format.ts';
-import type { SavingsGoal } from '../types.ts';
+import type { SavingsGoal, Transaction } from '../types.ts';
 
 function GoalPhoto({ title, imageUrl }: { title: string; imageUrl?: string }) {
   const [broken, setBroken] = useState(false);
@@ -32,14 +33,21 @@ function GoalPhoto({ title, imageUrl }: { title: string; imageUrl?: string }) {
 
 export function SavingsPage() {
   const { reload } = useFrei();
+  const { year, setYear, start, end } = useCalendarPeriod();
   const [items, setItems] = useState<Array<SavingsGoal>>([]);
+  const [txs, setTxs] = useState<Array<Transaction>>([]);
   const [error, setError] = useState('');
   const [amounts, setAmounts] = useState<Record<string, string>>({});
 
   const load = () => {
-    api
-      .savingsGoals()
-      .then((json) => setItems(json as Array<SavingsGoal>))
+    Promise.all([
+      api.savingsGoals() as Promise<Array<SavingsGoal>>,
+      api.transactions() as Promise<Array<Transaction>>,
+    ])
+      .then(([goals, list]) => {
+        setItems(goals);
+        setTxs(list.filter((t) => Boolean(t.savingsGoalId)));
+      })
       .catch((err: Error) => setError(err.message));
   };
 
@@ -67,7 +75,20 @@ export function SavingsPage() {
 
   return (
     <section className="space-y-6">
-      <h1 className="text-3xl font-bold">Sparziele</h1>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Sparziele</h1>
+          <ul className="mt-3 flex flex-wrap gap-3 text-xs text-stone-600">
+            <li className="flex items-center gap-1.5">
+              <span className="h-3 w-3 rounded-sm bg-violet-200" /> Offen
+            </li>
+            <li className="flex items-center gap-1.5">
+              <span className="h-3 w-3 rounded-sm bg-emerald-200" /> Geschafft
+            </li>
+          </ul>
+        </div>
+        <PeriodFilter year={year} onYear={setYear} />
+      </div>
       {error && <p className="text-red-700">{error}</p>}
 
       {items.length === 0 ? (
@@ -84,6 +105,13 @@ export function SavingsPage() {
             })
             .map((g) => {
             const remaining = Math.max(0, Number((g.targetAmount - g.currentAmount).toFixed(2)));
+            const periodSum = txs
+              .filter((t) => String(t.savingsGoalId) === String(g._id))
+              .filter((t) => {
+                const month = t.date.slice(0, 7);
+                return month >= start && month <= end;
+              })
+              .reduce((sum, t) => sum + t.amount, 0);
             const percent =
               g.targetAmount > 0
                 ? Math.min(100, Math.round((g.currentAmount / g.targetAmount) * 100))
@@ -103,6 +131,9 @@ export function SavingsPage() {
                     </div>
                     <p className="mt-2 text-sm text-stone-500">
                       {euro(g.currentAmount)} gespart · noch {euro(remaining)}
+                    </p>
+                    <p className="mt-1 text-sm text-stone-500">
+                      Im Zeitraum {euro(periodSum)}
                     </p>
                   </div>
                   {remaining > 0 ? (

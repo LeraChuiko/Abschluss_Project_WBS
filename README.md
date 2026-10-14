@@ -1,4 +1,4 @@
-# Personal Finance Predictor
+# Familien Finance Predictor
 
 Abschlussprojekt: Budget, Einnahmen, Raten, Sparziele und Hinweise.
 
@@ -42,4 +42,22 @@ npm run dev
 
 Browser: **http://localhost:5173**
 
-Beim ersten Mal: **Registrieren**, dann **Anmelden**. Die API erwartet `Authorization: Bearer …`.
+Beim ersten Mal: **Registrieren**, dann **Anmelden**. Die API erwartet `Authorization: Bearer …`. Mit **Angemeldet bleiben** gilt JWT **30 Tage**, ohne Häkchen **12 Stunden** (nur dieses Browser-Fenster).
+
+## Deploy auf Render
+
+Zwei Services. MongoDB Atlas: Network Access `0.0.0.0/0`.
+
+**1. Web Service (API)**  
+- Root Directory: `finance-predictor-backend`  
+- Build: `npm install && npm run build`  
+- Start: `npm start`  
+- Environment: `MONGO_URI`, `JWT_SECRET`  
+
+**2. Static Site (Frontend)**  
+- Root Directory: `finance-predictor-frontend`  
+- Build: `npm install && npm run build`  
+- Publish directory: `dist`  
+- Environment: `VITE_API_URL=https://DEIN-API.onrender.com/api`  
+
+Redirects (SPA): `/*` → `/index.html`. Nach dem ersten Deploy Frontend neu bauen, sobald die API-URL feststeht.

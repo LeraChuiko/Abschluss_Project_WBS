@@ -2,15 +2,16 @@ import { useEffect, useState } from 'react';
 import { api } from '../api.ts';
 import { AmountEdit } from '../components/AmountEdit.tsx';
 import { useFrei } from '../FreiContext.tsx';
-import { euro, fieldClass, monthLabel, monthsInRange, isEditableMonth } from '../lib/format.ts';
+import { PeriodFilter, useCalendarPeriod } from '../components/PeriodFilter.tsx';
+import { euro, monthLabel, monthsInRange, isEditableMonth } from '../lib/format.ts';
 import type { IncomeGroup, Transaction } from '../types.ts';
 
 const groups: { key: IncomeGroup; label: string; wrap: string; mark: string }[] = [
   { key: 'salary', label: 'Gehalt / Job', wrap: 'bg-sky-50', mark: 'bg-sky-200' },
   { key: 'business', label: 'Business', wrap: 'bg-violet-50', mark: 'bg-violet-200' },
+  { key: 'investment', label: 'Investitionen', wrap: 'bg-indigo-50', mark: 'bg-indigo-200' },
   { key: 'freelance', label: 'Freelance', wrap: 'bg-amber-50', mark: 'bg-amber-200' },
   { key: 'gift', label: 'Geschenke / Wunder', wrap: 'bg-fuchsia-50', mark: 'bg-fuchsia-200' },
-  { key: 'investment', label: 'Investitionen', wrap: 'bg-indigo-50', mark: 'bg-indigo-200' },
 ];
 
 function monthOf(iso: string): string {
@@ -23,16 +24,14 @@ function formatDay(iso: string): string {
 
 export function IncomesPage() {
   const { reload } = useFrei();
-  const year = new Date().getFullYear();
-  const [fromMonth, setFromMonth] = useState(`${year}-01`);
-  const [toMonth, setToMonth] = useState(`${year}-12`);
+  const { year, setYear, start, end } = useCalendarPeriod();
   const [incomes, setIncomes] = useState<Transaction[]>([]);
   const [error, setError] = useState('');
 
   const load = () => {
     setError('');
     api
-      .transactions()
+      .transactionsYear(year)
       .then((json) => setIncomes((json as Transaction[]).filter((t) => t.type === 'income')))
       .catch((err: Error) => setError(err.message));
   };
@@ -42,10 +41,8 @@ export function IncomesPage() {
     const onReload = () => load();
     window.addEventListener('finance-reload', onReload);
     return () => window.removeEventListener('finance-reload', onReload);
-  }, []);
+  }, [year]);
 
-  const start = fromMonth <= toMonth ? fromMonth : toMonth;
-  const end = fromMonth <= toMonth ? toMonth : fromMonth;
   const months = monthsInRange(start, end);
   const visible = incomes.filter((t) => {
     const month = monthOf(t.date);
@@ -62,7 +59,6 @@ export function IncomesPage() {
     <section className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold">Einnahmen</h1>
-        <p className="mt-2 text-stone-500">Oben die Summe nach Kategorie. Darunter die Monate.</p>
         <ul className="mt-3 flex flex-wrap gap-3 text-xs text-stone-600">
           {groups.map((g) => (
             <li key={g.key} className="flex items-center gap-1.5">
@@ -80,26 +76,7 @@ export function IncomesPage() {
             <p className="text-sm font-semibold text-stone-500">Gewählter Zeitraum nach Kategorie</p>
             <p className="mt-1 text-2xl font-bold tabular-nums">{euro(total)}</p>
           </div>
-          <div className="flex w-full flex-col gap-3 text-sm text-stone-600 sm:w-auto sm:flex-row sm:items-center">
-            <label className="flex items-center">
-              Von
-              <input
-                className={`${fieldClass} period-month ml-2`}
-                type="month"
-                value={fromMonth}
-                onChange={(e) => setFromMonth(e.target.value)}
-              />
-            </label>
-            <label className="flex items-center">
-              Bis
-              <input
-                className={`${fieldClass} period-month ml-2`}
-                type="month"
-                value={toMonth}
-                onChange={(e) => setToMonth(e.target.value)}
-              />
-            </label>
-          </div>
+          <PeriodFilter year={year} onYear={setYear} />
         </div>
         <ul className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
           {byGroup.map((g) => (

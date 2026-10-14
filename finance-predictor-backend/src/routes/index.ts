@@ -6,6 +6,7 @@ import transactionRoutes from './transaction.routes.ts';
 import dashboardRoutes from './dashboard.routes.ts';
 import debtRoutes from './debt.routes.ts';
 import savingsGoalRoutes from './savingsGoal.routes.ts';
+import hinweisRoutes from './hinweis.routes.ts';
 
 const router = Router();
 
@@ -15,6 +16,7 @@ router.use('/transactions', requireAuth, transactionRoutes);
 router.use('/dashboard', requireAuth, dashboardRoutes);
 router.use('/debts', requireAuth, debtRoutes);
 router.use('/savings-goals', requireAuth, savingsGoalRoutes);
+router.use('/hinweise', requireAuth, hinweisRoutes);
 
 
 export default router;

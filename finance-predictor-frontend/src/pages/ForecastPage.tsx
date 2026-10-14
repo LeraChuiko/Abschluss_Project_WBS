@@ -1,337 +1,272 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { api } from '../api.ts';
-import { useFrei } from '../FreiContext.tsx';
-import { currentMonthKey, euro, monthName, monthsInRange, shiftMonth } from '../lib/format.ts';
-import type { Dashboard, Debt, SavingsGoal, Transaction } from '../types.ts';
+import { PeriodFilter, useCalendarPeriod } from '../components/PeriodFilter.tsx';
+import { currentMonthKey, hintOccurrences, monthLabel } from '../lib/format.ts';
+import type { Hinweis } from '../types.ts';
 
-type HintKind = 'Saison' | 'Budget' | 'Sparziel' | 'Raten';
-
-type Hint = {
-  id: string;
-  kind: HintKind;
-  when: string;
-  title: string;
-  text: string;
+type Row = {
+  key: string;
+  series: Hinweis;
+  month: string;
+  done: boolean;
 };
 
-const kindClass: Record<HintKind, string> = {
-  Saison: 'bg-amber-100 text-amber-900',
-  Budget: 'bg-violet-100 text-violet-900',
-  Sparziel: 'bg-emerald-100 text-emerald-900',
-  Raten: 'bg-fuchsia-100 text-fuchsia-900',
-};
-
-const seasonByMonth: Record<string, Array<{ title: string; text: string }>> = {
-  '01': [
-    {
-      title: 'Belege für die Steuer',
-      text: 'Januar ist gut, um Rechnungen und Spendenbelege zu sammeln — bevor sie in der Schublade verschwinden.',
-    },
-  ],
-  '02': [
-    {
-      title: 'Heizung prüfen',
-      text: 'Februar ist oft der teuerste Heizmonat. Schau, ob die Strom- und Gaszeile noch zur Realität passt.',
-    },
-  ],
-  '03': [
-    {
-      title: 'Sommerreifen',
-      text: 'Ab März/April kommen Sommerreifen. Plane Montage und lager die Winterreifen, bevor der Termin voll ist.',
-    },
-  ],
-  '04': [
-    {
-      title: 'Ostern und Ausflüge',
-      text: 'Kurzurlaub und Geschenke kommen extra. Lege den Betrag als Variable an, dann bleibt der Rest ehrlich.',
-    },
-  ],
-  '05': [
-    {
-      title: 'Versicherungen',
-      text: 'Viele Jahresbeiträge landen im Frühling. Prüfe, ob Haftpflicht und Hausrat noch zu deinem Leben passen.',
-    },
-  ],
-  '06': [
-    {
-      title: 'Urlaub buchen',
-      text: 'Sommerpreise steigen. Wenn Urlaub ein Sparziel ist — jetzt einzahlen, nicht im Juli improvisieren.',
-    },
-  ],
-  '07': [
-    {
-      title: 'Sommerloch im Kalender, nicht im Konto',
-      text: 'Eis, Bahn, Ausflüge: kleine Variable addiert sich. Ein Tageslimit hält Frei sichtbar.',
-    },
-  ],
-  '08': [
-    {
-      title: 'Schulstart / September vorbereiten',
-      text: 'Material, Tickets, neue Abos. Besser jetzt eine Zeile anlegen als im September überrascht zu sein.',
-    },
-  ],
-  '09': [
-    {
-      title: 'Heizperiode startet',
-      text: 'Ab September wird es wieder kalt. Winterdienst, Öl, Strom — schau die Pflicht-Zeilen an.',
-    },
-  ],
-  '10': [
-    {
-      title: 'Winterreifen',
-      text: 'In Deutschland gilt: bei Glätte Winterreifen. Oktober ist der ruhige Monat für Wechsel, bevor der erste Frost kommt.',
-    },
-  ],
-  '11': [
-    {
-      title: 'Weihnachten vorbereiten',
-      text: 'November ist der letzte ruhige Monat. Geschenke und Fahrten lieber als Variable einplanen — nicht aus Frei stehlen.',
-    },
-  ],
-  '12': [
-    {
-      title: 'Weihnachten und Silvester',
-      text: 'Dezember hat Extra-Ausgaben. Rest und Frei vorher anschauen, dann feierst du ohne Minus-Überraschung.',
-    },
-  ],
-};
-
-function seasonHints(month: string): Array<Hint> {
-  const key = month.slice(5, 7);
-  const when = monthName(month);
-  return (seasonByMonth[key] ?? []).map((item, index) => ({
-    id: `saison-${month}-${index}`,
-    kind: 'Saison',
-    when,
-    title: item.title,
-    text: item.text,
-  }));
+function calendarMonthName(monthNumber: number): string {
+  return new Date(Date.UTC(2026, monthNumber - 1, 1)).toLocaleDateString('de-DE', {
+    month: 'long',
+    timeZone: 'UTC',
+  });
 }
 
-function remainingDebtMonths(debt: Debt, now: string): number {
-  const last = shiftMonth(debt.startMonth, Math.max(0, debt.months - 1));
-  if (last < now) {
-    return 0;
+function joinDe(names: string[]): string {
+  if (names.length <= 1) {
+    return names[0] ?? '';
   }
-  const from = debt.startMonth > now ? debt.startMonth : now;
-  return monthsInRange(from, last).length;
+  if (names.length === 2) {
+    return `${names[0]} und ${names[1]}`;
+  }
+  return `${names.slice(0, -1).join(', ')} und ${names[names.length - 1]}`;
 }
 
-export function ForecastPage() {
-  const { frei } = useFrei();
-  const month = currentMonthKey();
-  const next = shiftMonth(month, 1);
-  const later = shiftMonth(month, 2);
-  const [error, setError] = useState('');
-  const [nowDash, setNowDash] = useState<Dashboard | null>(null);
-  const [nextDash, setNextDash] = useState<Dashboard | null>(null);
-  const [expenses, setExpenses] = useState<Array<Transaction>>([]);
-  const [debts, setDebts] = useState<Array<Debt>>([]);
-  const [goals, setGoals] = useState<Array<SavingsGoal>>([]);
+function untilPhrase(endMonth?: string, yearly = false): string {
+  if (!endMonth) {
+    return '';
+  }
+  if (yearly) {
+    return ` bis ${endMonth.slice(0, 4)}`;
+  }
+  return ` bis ${monthLabel(endMonth)}`;
+}
 
-  useEffect(() => {
-    Promise.all([
-      api.dashboard(month) as Promise<Dashboard>,
-      api.dashboard(next) as Promise<Dashboard>,
-      api.transactions(month) as Promise<Array<Transaction>>,
-      api.debts() as Promise<Array<Debt>>,
-      api.savingsGoals() as Promise<Array<SavingsGoal>>,
-    ])
-      .then(([dash, dashNext, list, debtList, goalList]) => {
-        setNowDash(dash);
-        setNextDash(dashNext);
-        setExpenses(list.filter((item) => item.type === 'expense'));
-        setDebts(debtList);
-        setGoals(goalList);
-      })
-      .catch((err: Error) => setError(err.message));
-  }, [month, next]);
+function intervalLabel(item: Hinweis): string {
+  const custom = [...(item.customMonths ?? [])].sort((a, b) => a - b);
+  const startName = calendarMonthName(Number(item.month.slice(5, 7)));
+  if (custom.length > 0) {
+    const names = joinDe(custom.map(calendarMonthName));
+    return `Wiederholung im ${names}, jährlich${untilPhrase(item.endMonth, true)}`;
+  }
+  const every = item.everyMonths ?? 0;
+  if (!every) {
+    return 'einmal';
+  }
+  if (every === 12) {
+    return `Wiederholung im ${startName}, jährlich${untilPhrase(item.endMonth, true)}`;
+  }
+  if (every === 1) {
+    return `jeden Monat${untilPhrase(item.endMonth)}`;
+  }
+  if (every === 6) {
+    return `alle 6 Monate ab ${startName}${untilPhrase(item.endMonth)}`;
+  }
+  if (every === 3) {
+    return `alle 3 Monate ab ${startName}${untilPhrase(item.endMonth)}`;
+  }
+  return `alle ${every} Monate ab ${startName}${untilPhrase(item.endMonth)}`;
+}
 
-  const hints = useMemo(() => {
-    const rows: Array<Hint> = [
-      ...seasonHints(month),
-      ...seasonHints(next),
-      ...seasonHints(later),
-    ];
-
-    if (frei < 0) {
-      rows.push({
-        id: 'budget-frei',
-        kind: 'Budget',
-        when: 'Bis Jahresende',
-        title: 'Freie Mittel im Minus',
-        text: `Frei steht bei ${euro(frei)}. Schau Variabel und Raten an, bevor du eine neue Ausgabe setzt.`,
-      });
-    } else if (frei > 0) {
-      rows.push({
-        id: 'budget-frei-ok',
-        kind: 'Budget',
-        when: 'Bis Jahresende',
-        title: 'Es bleibt Luft',
-        text: `${euro(frei)} sind frei bis Dezember. Gut für Sparziele — nicht für stille Abos.`,
-      });
-    }
-
-    if (nowDash && nowDash.balance < 0) {
-      rows.push({
-        id: 'budget-month',
-        kind: 'Budget',
-        when: monthName(month),
-        title: 'Dieser Monat ist eng',
-        text: `Rest in ${monthName(month)}: ${euro(nowDash.balance)}. Einnahmen ${euro(nowDash.incomeTotal)}, Ausgaben ${euro(nowDash.expenseTotal)}.`,
-      });
-    }
-
-    if (nextDash && nextDash.expenseTotal > 0 && nextDash.balance < 0) {
-      rows.push({
-        id: 'budget-next',
-        kind: 'Budget',
-        when: monthName(next),
-        title: `${monthName(next)} wird negativ`,
-        text: `Die geplanten Ausgaben (${euro(nextDash.expenseTotal)}) sind höher als die Einnahmen. Raten und Pflicht zuerst anfassen.`,
-      });
-    }
-
-    const variable = expenses.filter((item) => item.expenseBlock === 'variable' && item.amount > 0);
-    const variableSum = variable.reduce((sum, item) => sum + item.amount, 0);
-    if (nowDash && nowDash.incomeTotal > 0 && variableSum > nowDash.incomeTotal * 0.35) {
-      rows.push({
-        id: 'budget-variable',
-        kind: 'Budget',
-        when: monthName(month),
-        title: 'Viel Variabel',
-        text: `${euro(variableSum)} in der grünen Tabelle — mehr als ein Drittel der Einnahmen. Das frisst Frei am schnellsten.`,
-      });
-    }
-
-    for (const goal of goals) {
-      const rest = Math.max(0, Number((goal.targetAmount - goal.currentAmount).toFixed(2)));
-      if (rest <= 0) {
-        rows.push({
-          id: `goal-done-${goal._id}`,
-          kind: 'Sparziel',
-          when: 'Geschlossen',
-          title: `${goal.title} ist da`,
-          text: `${euro(goal.targetAmount)} sind beisammen. Die Karte auf Sparziele zeigt das Grün — du musst nichts mehr einzahlen.`,
-        });
-      } else {
-        rows.push({
-          id: `goal-open-${goal._id}`,
-          kind: 'Sparziel',
-          when: 'Offen',
-          title: `Noch ${euro(rest)} für ${goal.title}`,
-          text:
-            frei > 0
-              ? `Aus Frei (${euro(frei)}) kannst du einen Teil nach Sparziele schieben. Der Betrag landet in Variabel.`
-              : `Frei ist knapp. Erst den Monat stabilisieren, dann wieder einzahlen.`,
-        });
-      }
-    }
-
-    for (const debt of debts) {
-      const left = remainingDebtMonths(debt, month);
-      if (left <= 0) {
-        continue;
-      }
-      rows.push({
-        id: `raten-${debt._id}`,
-        kind: 'Raten',
-        when: `${left} Monate`,
-        title: `${debt.title} läuft noch`,
-        text: `Noch ${left} Raten à ${euro(debt.monthlyPayment)}. Das sitzt in der pinken Tabelle und drückt Frei jeden Monat.`,
-      });
-    }
-
-    return rows;
-  }, [debts, expenses, frei, goals, later, month, next, nextDash, nowDash]);
-
-  const nowName = monthName(month);
-  const saisonNow = hints.filter((hint) => hint.kind === 'Saison' && hint.when === nowName);
-  const saisonSoon = hints.filter((hint) => hint.kind === 'Saison' && hint.when !== nowName);
-  const personal = hints.filter((hint) => hint.kind !== 'Saison');
+function HintIcon({
+  label,
+  tone,
+  onClick,
+  children,
+}: {
+  label: string;
+  tone: 'done' | 'restore' | 'delete';
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  const hover =
+    tone === 'done'
+      ? 'hover:border-emerald-600 hover:bg-emerald-600 hover:text-white'
+      : tone === 'restore'
+        ? 'hover:border-violet-700 hover:bg-violet-700 hover:text-white'
+        : 'hover:border-red-600 hover:bg-red-600 hover:text-white';
 
   return (
-    <section className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Hinweise</h1>
-        <p className="mt-2 text-stone-500">
-          Keine Magie: Saison im Kalender plus Zahlen aus Budget, Raten und Sparzielen.
-        </p>
-      </div>
-      {error && <p className="text-red-700">{error}</p>}
-
-      <div className="grid gap-4 sm:grid-cols-3">
-        <article className="rounded-2xl bg-white p-4 shadow-sm">
-          <p className="text-xs text-stone-500">Frei bis Jahresende</p>
-          <p className={`text-xl font-bold tabular-nums ${frei < 0 ? 'text-red-700' : 'text-violet-800'}`}>
-            {euro(frei)}
-          </p>
-        </article>
-        <article className="rounded-2xl bg-white p-4 shadow-sm">
-          <p className="text-xs text-stone-500">Rest {monthName(month)}</p>
-          <p
-            className={`text-xl font-bold tabular-nums ${
-              (nowDash?.balance ?? 0) < 0 ? 'text-red-700' : 'text-stone-800'
-            }`}
-          >
-            {nowDash ? euro(nowDash.balance) : '—'}
-          </p>
-        </article>
-        <article className="rounded-2xl bg-white p-4 shadow-sm">
-          <p className="text-xs text-stone-500">Hinweise</p>
-          <p className="text-xl font-bold tabular-nums">{hints.length}</p>
-        </article>
-      </div>
-
-      {saisonNow.length > 0 && (
-        <div className="space-y-3">
-          <h2 className="text-lg font-semibold">Diesen Monat</h2>
-          <ul className="grid gap-3">
-            {saisonNow.map((hint) => (
-              <HintCard key={hint.id} hint={hint} />
-            ))}
-          </ul>
-        </div>
-      )}
-
-      <div className="space-y-3">
-        <h2 className="text-lg font-semibold">Aus deinem Budget</h2>
-        {personal.length === 0 ? (
-          <p className="text-stone-500">Sobald Zahlen da sind, erscheinen Hinweise zu Frei, Raten und Zielen.</p>
-        ) : (
-          <ul className="grid gap-3">
-            {personal.map((hint) => (
-              <HintCard key={hint.id} hint={hint} />
-            ))}
-          </ul>
-        )}
-      </div>
-
-      {saisonSoon.length > 0 && (
-        <div className="space-y-3">
-          <h2 className="text-lg font-semibold">Bald</h2>
-          <ul className="grid gap-3 sm:grid-cols-2">
-            {saisonSoon.map((hint) => (
-              <HintCard key={hint.id} hint={hint} />
-            ))}
-          </ul>
-        </div>
-      )}
-    </section>
+    <span className="group/tip relative inline-flex">
+      <button
+        type="button"
+        aria-label={label}
+        className={`inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-stone-300 bg-white text-stone-600 shadow-sm transition ${hover}`}
+        onClick={onClick}
+      >
+        {children}
+      </button>
+      <span className="pointer-events-none absolute right-0 bottom-full z-10 mb-1 hidden rounded-md bg-stone-800 px-2 py-1 text-xs whitespace-nowrap text-white group-hover/tip:block">
+        {label}
+      </span>
+    </span>
   );
 }
 
-function HintCard({ hint }: { hint: Hint }) {
-  return (
-    <li className="rounded-2xl bg-white p-4 shadow-sm">
-      <div className="mb-2 flex flex-wrap items-center gap-2">
-        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${kindClass[hint.kind]}`}>
-          {hint.kind}
-        </span>
-        <span className="text-xs text-stone-400">{hint.when}</span>
+function cardClass(row: Row, now: string): string {
+  if (row.done) {
+    return 'bg-stone-200 text-stone-500';
+  }
+  if (row.month > now) {
+    return 'bg-amber-50 text-amber-950';
+  }
+  return 'bg-emerald-50 text-emerald-950';
+}
+
+export function ForecastPage() {
+  const now = currentMonthKey();
+  const { year, setYear, start, end } = useCalendarPeriod();
+  const [items, setItems] = useState<Array<Hinweis>>([]);
+  const [error, setError] = useState('');
+
+  const load = () => {
+    api
+      .hinweise()
+      .then((json) => setItems(json as Array<Hinweis>))
+      .catch((err: Error) => setError(err.message));
+  };
+
+  useEffect(() => {
+    load();
+    const onReload = () => load();
+    window.addEventListener('finance-reload', onReload);
+    return () => window.removeEventListener('finance-reload', onReload);
+  }, []);
+
+  const rows: Array<Row> = [];
+  for (const item of items) {
+    const seriesEnd = item.endMonth || end;
+    const occs = hintOccurrences(item.month, seriesEnd, item.everyMonths ?? 0, item.customMonths ?? []);
+    const doneSet = new Set(item.doneMonths ?? []);
+    for (const month of occs) {
+      if (month < start || month > end) {
+        continue;
+      }
+      rows.push({
+        key: `${item._id}-${month}`,
+        series: item,
+        month,
+        done: doneSet.has(month) || (Boolean(item.done) && month <= now),
+      });
+    }
+  }
+  rows.sort((a, b) => {
+    if (a.done !== b.done) {
+      return Number(a.done) - Number(b.done);
+    }
+    return a.month.localeCompare(b.month);
+  });
+
+  const markDone = (row: Row) => {
+    const prev = row.series.doneMonths ?? [];
+    api
+      .updateHinweis(row.series._id, { doneMonths: [...new Set([...prev, row.month])] })
+      .then(load)
+      .catch((err: Error) => setError(err.message));
+  };
+
+  const reactivate = (row: Row) => {
+    const next = (row.series.doneMonths ?? []).filter((month) => month !== row.month);
+    api
+      .updateHinweis(row.series._id, { doneMonths: next, done: false })
+      .then(load)
+      .catch((err: Error) => setError(err.message));
+  };
+
+  const removeHint = (row: Row) => {
+    const ok = window.confirm(`Hinweis „${row.series.title}“ wirklich löschen?`);
+    if (!ok) {
+      return;
+    }
+    api
+      .deleteHinweis(row.series._id)
+      .then(load)
+      .catch((err: Error) => setError(err.message));
+  };
+
+  const activeRows = rows.filter((row) => !row.done);
+  const archivedRows = rows.filter((row) => row.done);
+
+  const hintCard = (row: Row) => (
+    <li key={row.key} className={`flex h-full flex-col rounded-2xl p-4 shadow-sm ${cardClass(row, now)}`}>
+      <h2 className="line-clamp-2 text-base leading-6 font-semibold">{row.series.title}</h2>
+      {row.series.note ? (
+        <p className="mt-2 line-clamp-3 text-sm leading-5 opacity-80">{row.series.note}</p>
+      ) : null}
+      <div className="mt-auto flex items-end justify-between gap-2 pt-3">
+        <div className="min-w-0">
+          <p className="text-xs font-medium opacity-80">{monthLabel(row.month)}</p>
+          <p className="mt-0.5 text-xs opacity-70">{intervalLabel(row.series)}</p>
+        </div>
+        <div className="flex shrink-0 gap-1">
+          {row.done ? (
+            <>
+              <HintIcon label="Aktivieren" tone="restore" onClick={() => reactivate(row)}>
+                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 12a9 9 0 1 0 3-6.7" />
+                  <path d="M3 4v5h5" />
+                </svg>
+              </HintIcon>
+              <HintIcon label="Löschen" tone="delete" onClick={() => removeHint(row)}>
+                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 7h16" />
+                  <path d="M9 7V5h6v2" />
+                  <path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12" />
+                  <path d="M10 11v6M14 11v6" />
+                </svg>
+              </HintIcon>
+            </>
+          ) : (
+            <HintIcon label="Fertig" tone="done" onClick={() => markDone(row)}>
+              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M5 12.5 9.5 17 19 7" />
+              </svg>
+            </HintIcon>
+          )}
+        </div>
       </div>
-      <p className="font-semibold">{hint.title}</p>
-      <p className="mt-1 text-sm text-stone-600">{hint.text}</p>
     </li>
+  );
+
+  return (
+    <section className="space-y-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Hinweise</h1>
+          <ul className="mt-3 flex flex-wrap gap-3 text-xs text-stone-600">
+            <li className="flex items-center gap-1.5">
+              <span className="h-3 w-3 rounded-sm bg-emerald-200" /> Dieser Monat
+            </li>
+            <li className="flex items-center gap-1.5">
+              <span className="h-3 w-3 rounded-sm bg-amber-200" /> Geplant
+            </li>
+            <li className="flex items-center gap-1.5">
+              <span className="h-3 w-3 rounded-sm bg-stone-300" /> Erledigt
+            </li>
+          </ul>
+        </div>
+        <PeriodFilter year={year} onYear={setYear} />
+      </div>
+      {error && <p className="text-red-700">{error}</p>}
+
+      {rows.length === 0 ? (
+        <article className="rounded-2xl bg-white p-6 shadow-sm">
+          <p className="text-stone-600">Kein Hinweis in diesem Zeitraum.</p>
+          <p className="mt-3 text-sm text-stone-500">Ideen: Hefte im Juli, Schulbücher im April, Sommerreifen, Stromabrechnung.</p>
+        </article>
+      ) : (
+        <>
+          {activeRows.length > 0 && (
+            <ul className="grid grid-cols-1 items-stretch gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {activeRows.map(hintCard)}
+            </ul>
+          )}
+          {archivedRows.length > 0 && (
+            <div className="space-y-3">
+              <h2 className="text-lg font-semibold text-stone-500">Archiv</h2>
+              <ul className="grid grid-cols-1 items-stretch gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {archivedRows.map(hintCard)}
+              </ul>
+            </div>
+          )}
+        </>
+      )}
+    </section>
   );
 }

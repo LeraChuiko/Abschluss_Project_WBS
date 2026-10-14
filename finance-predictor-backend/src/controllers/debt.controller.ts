@@ -69,6 +69,9 @@ export const updateDebt = async (
       doc.monthlyPayment = req.body.monthlyPayment;
       await Transaction.updateMany({ debtId: doc._id }, { amount: req.body.monthlyPayment });
     }
+    if (typeof req.body.archived === 'boolean') {
+      doc.archived = req.body.archived;
+    }
     await doc.save();
     res.status(200).json(doc);
   } catch (error) {

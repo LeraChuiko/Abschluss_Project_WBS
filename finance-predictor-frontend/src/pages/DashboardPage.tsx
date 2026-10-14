@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom';
 import { api } from '../api.ts';
 import { useFrei } from '../FreiContext.tsx';
 import { AmountEdit } from '../components/AmountEdit.tsx';
-import { euro, fieldClass, monthName, monthsInRange, isEditableMonth } from '../lib/format.ts';
+import { PeriodFilter, useCalendarPeriod } from '../components/PeriodFilter.tsx';
+import { euro, monthName, isEditableMonth } from '../lib/format.ts';
 import type { Dashboard, ExpenseBlock, Transaction } from '../types.ts';
 
 const blocks: { key: ExpenseBlock; label: string; wrap: string }[] = [
@@ -24,32 +25,26 @@ function formatDay(iso: string): string {
 }
 
 export function DashboardPage() {
-  const year = new Date().getFullYear();
-  const [fromMonth, setFromMonth] = useState(`${year}-01`);
-  const [toMonth, setToMonth] = useState(`${year}-12`);
+  const { year, setYear } = useCalendarPeriod();
   const [tables, setTables] = useState<MonthTable[]>([]);
   const [error, setError] = useState('');
 
   const load = () => {
     setError('');
-    const start = fromMonth <= toMonth ? fromMonth : toMonth;
-    const end = fromMonth <= toMonth ? toMonth : fromMonth;
-    const months = monthsInRange(start, end);
-    Promise.all(
-      months.map(async (m) => {
-        const [dashboard, list] = await Promise.all([
-          api.dashboard(m) as Promise<Dashboard>,
-          api.transactions(m) as Promise<Array<Transaction>>,
-        ]);
-        return {
-          month: m,
-          dashboard,
-          incomes: list.filter((t) => t.type === 'income'),
-          expenses: list.filter((t) => t.type === 'expense'),
-        };
-      }),
-    )
-      .then(setTables)
+    Promise.all([
+      api.dashboardYear(year) as Promise<{ year: string; months: Dashboard[] }>,
+      api.transactionsYear(year) as Promise<Transaction[]>,
+    ])
+      .then(([dash, list]) => {
+        setTables(
+          dash.months.map((dashboard) => ({
+            month: dashboard.month,
+            dashboard,
+            incomes: list.filter((t) => t.type === 'income' && t.date.slice(0, 7) === dashboard.month),
+            expenses: list.filter((t) => t.type === 'expense' && t.date.slice(0, 7) === dashboard.month),
+          })),
+        );
+      })
       .catch((err: Error) => setError(err.message));
   };
 
@@ -58,7 +53,7 @@ export function DashboardPage() {
     const onReload = () => load();
     window.addEventListener('finance-reload', onReload);
     return () => window.removeEventListener('finance-reload', onReload);
-  }, [fromMonth, toMonth]);
+  }, [year]);
 
   const periodIncome = tables.reduce((sum, table) => sum + table.dashboard.incomeTotal, 0);
   const periodExpense = tables.reduce((sum, table) => sum + table.dashboard.expenseTotal, 0);
@@ -70,7 +65,6 @@ export function DashboardPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold">Budget</h1>
-          <p className="mt-2 text-stone-500">Von–bis, drei Tabellen in einer Reihe.</p>
           <ul className="mt-3 flex flex-wrap gap-3 text-xs text-stone-600">
             <li className="flex items-center gap-1.5">
               <span className="h-3 w-3 rounded-sm bg-sky-200" /> Pflicht / Fix
@@ -81,29 +75,9 @@ export function DashboardPage() {
             <li className="flex items-center gap-1.5">
               <span className="h-3 w-3 rounded-sm bg-emerald-200" /> Variabel
             </li>
-            <li className="text-stone-400">Vergangenes bleibt. Pflicht ab diesem Monat gilt auch voraus</li>
           </ul>
         </div>
-        <div className="flex w-full flex-col gap-3 text-sm text-stone-600 sm:w-auto sm:flex-row sm:items-center">
-          <label className="flex items-center">
-            Von
-            <input
-              className={`${fieldClass} period-month ml-2`}
-              type="month"
-              value={fromMonth}
-              onChange={(e) => setFromMonth(e.target.value)}
-            />
-          </label>
-          <label className="flex items-center">
-            Bis
-            <input
-              className={`${fieldClass} period-month ml-2`}
-              type="month"
-              value={toMonth}
-              onChange={(e) => setToMonth(e.target.value)}
-            />
-          </label>
-        </div>
+        <PeriodFilter year={year} onYear={setYear} />
       </div>
 
       {error && <p className="text-red-700">{error}</p>}
