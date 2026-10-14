@@ -4,13 +4,16 @@ import jwt from 'jsonwebtoken';
 import { User } from '../models/User.ts';
 import type { AuthedRequest } from '../middleware/requireAuth.ts';
 
-const tokenFor = (user: { id: string; email: string; name: string }): string => {
+const tokenFor = (
+  user: { id: string; email: string; name: string },
+  remember = true,
+): string => {
   const secret = process.env.JWT_SECRET;
   if (!secret) {
     throw new Error('JWT_SECRET is missing');
   }
   return jwt.sign({ sub: user.id, email: user.email, name: user.name }, secret, {
-    expiresIn: '7d',
+    expiresIn: remember ? '30d' : '12h',
   });
 };
 
@@ -40,7 +43,8 @@ export const register = async (
       name: req.body.name ?? '',
     });
     const user = publicUser({ id: String(doc._id), email: doc.email, name: doc.name });
-    res.status(201).json({ token: tokenFor(user), user });
+    const remember = req.body.remember !== false;
+    res.status(201).json({ token: tokenFor(user, remember), user });
   } catch (error) {
     next(error);
   }
@@ -62,7 +66,8 @@ export const login = async (req: Request, res: Response, next: NextFunction): Pr
     }
 
     const user = publicUser({ id: String(doc._id), email: doc.email, name: doc.name });
-    res.status(200).json({ token: tokenFor(user), user });
+    const remember = req.body.remember !== false;
+    res.status(200).json({ token: tokenFor(user, remember), user });
   } catch (error) {
     next(error);
   }

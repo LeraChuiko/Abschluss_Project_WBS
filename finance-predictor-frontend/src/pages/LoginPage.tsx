@@ -8,13 +8,14 @@ export function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [remember, setRemember] = useState(true);
   const [error, setError] = useState('');
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#f6f3ee] px-4">
       <article className="w-full max-w-md rounded-2xl bg-white p-6 shadow-sm">
         <p className="text-xs font-semibold tracking-wide text-violet-700 uppercase">
-          Personal Finance Predictor
+          Familien Finance Predictor
         </p>
         <h1 className="mt-1 text-2xl font-bold">
           {mode === 'login' ? 'Anmelden' : 'Registrieren'}
@@ -28,8 +29,8 @@ export function LoginPage() {
             setError('');
             const job =
               mode === 'login'
-                ? login(email, password)
-                : register(email, password, name.trim() || 'Valeriia');
+                ? login(email, password, remember)
+                : register(email, password, name.trim() || 'Valeriia', remember);
             job.catch((err: Error) => setError(err.message));
           }}
         >
@@ -58,6 +59,14 @@ export function LoginPage() {
             onChange={(e) => setPassword(e.target.value)}
             required
           />
+          <label className="flex items-center gap-2 text-sm text-stone-600">
+            <input
+              type="checkbox"
+              checked={remember}
+              onChange={(e) => setRemember(e.target.checked)}
+            />
+            Angemeldet bleiben (30 Tage)
+          </label>
           <button className={`${btnClass} w-full`} type="submit">
             {mode === 'login' ? 'Anmelden' : 'Konto erstellen'}
           </button>

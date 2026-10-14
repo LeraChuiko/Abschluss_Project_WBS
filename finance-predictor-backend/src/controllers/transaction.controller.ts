@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { Debt } from '../models/Debt.ts';
+import { ensureRecurringForRange } from '../lib/ensureRecurring.ts';
 import { SavingsGoal } from '../models/SavingsGoal.ts';
 import { Transaction } from '../models/Transaction.ts';
 
@@ -31,9 +32,17 @@ export const listTransactions = async (
 ): Promise<void> => {
   try {
     const month = req.query.month;
+    const year = req.query.year;
     const filter: Record<string, unknown> = {};
 
-    if (typeof month === 'string' && /^\d{4}-\d{2}$/.test(month)) {
+    if (typeof year === 'string' && /^\d{4}$/.test(year)) {
+      await ensureRecurringForRange(`${year}-01`, `${year}-12`);
+      filter.date = {
+        $gte: new Date(`${year}-01-01T00:00:00.000Z`),
+        $lt: new Date(`${Number(year) + 1}-01-01T00:00:00.000Z`),
+      };
+    } else if (typeof month === 'string' && /^\d{4}-\d{2}$/.test(month)) {
+      await ensureRecurringForRange(month, month);
       const start = new Date(`${month}-01T00:00:00.000Z`);
       const end = new Date(start);
       end.setUTCMonth(end.getUTCMonth() + 1);

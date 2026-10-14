@@ -7,6 +7,7 @@ const debtSchema = new mongoose.Schema(
     monthlyPayment: { type: Number, required: true, min: 0 },
     startMonth: { type: String, required: true },
     months: { type: Number, required: true, min: 1 },
+    archived: { type: Boolean, default: false },
   },
   { timestamps: true },
 );

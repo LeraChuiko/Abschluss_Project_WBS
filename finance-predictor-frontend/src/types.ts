@@ -30,6 +30,7 @@ export type Debt = {
   monthlyPayment: number;
   startMonth: string;
   months: number;
+  archived?: boolean;
 };
 
 export type SavingsGoal = {
@@ -38,4 +39,16 @@ export type SavingsGoal = {
   targetAmount: number;
   currentAmount: number;
   imageUrl?: string;
+};
+
+export type Hinweis = {
+  _id: string;
+  title: string;
+  note?: string;
+  month: string;
+  endMonth?: string;
+  everyMonths?: number;
+  customMonths?: number[];
+  doneMonths?: string[];
+  done?: boolean;
 };

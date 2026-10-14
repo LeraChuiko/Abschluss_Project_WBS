@@ -7,6 +7,7 @@ export const updateDebtSchema = z.object({
     monthlyPayment: z.number().min(0).optional(),
     startMonth: z.string().regex(/^\d{4}-\d{2}$/).optional(),
     months: z.number().int().min(1).max(60).optional(),
+    archived: z.boolean().optional(),
   }),
 });
 

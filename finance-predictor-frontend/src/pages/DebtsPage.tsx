@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api.ts';
 import { AmountEdit } from '../components/AmountEdit.tsx';
+import { PeriodFilter, useCalendarPeriod } from '../components/PeriodFilter.tsx';
 import { useFrei } from '../FreiContext.tsx';
 import {
   euro,
-  fieldClass,
   shortMonthLabel,
   shiftMonth,
   isEditableMonth,
@@ -82,9 +82,7 @@ function plaqueClass(iso: string): string {
 
 export function DebtsPage() {
   const { reload } = useFrei();
-  const year = new Date().getFullYear();
-  const [fromMonth, setFromMonth] = useState(`${year}-01`);
-  const [toMonth, setToMonth] = useState(`${year}-12`);
+  const { year, setYear, start, end } = useCalendarPeriod();
   const [items, setItems] = useState<Array<Debt>>([]);
   const [txs, setTxs] = useState<Array<Transaction>>([]);
   const [error, setError] = useState('');
@@ -108,17 +106,11 @@ export function DebtsPage() {
     return () => window.removeEventListener('finance-reload', onReload);
   }, []);
 
-  const start = fromMonth <= toMonth ? fromMonth : toMonth;
-  const end = fromMonth <= toMonth ? toMonth : fromMonth;
-
   return (
     <section className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold">Raten</h1>
-          <p className="mt-2 text-stone-500">
-            Eine Tabelle je Vertrag. Bezahlt wird grün, noch offen gelb. Farbe folgt dem Datum.
-          </p>
           <ul className="mt-3 flex flex-wrap gap-3 text-xs text-stone-600">
             <li className="flex items-center gap-1.5">
               <span className="h-3 w-3 rounded-sm bg-emerald-200" /> Bezahlt
@@ -126,42 +118,30 @@ export function DebtsPage() {
             <li className="flex items-center gap-1.5">
               <span className="h-3 w-3 rounded-sm bg-amber-200" /> Erwartet
             </li>
+            <li className="flex items-center gap-1.5">
+              <span className="h-3 w-3 rounded-sm bg-stone-300" /> Geschlossen
+            </li>
           </ul>
         </div>
-        <div className="flex w-full flex-col gap-3 text-sm text-stone-600 sm:w-auto sm:flex-row sm:items-center">
-          <label className="flex items-center">
-            Von
-            <input
-              className={`${fieldClass} period-month ml-2`}
-              type="month"
-              value={fromMonth}
-              onChange={(e) => setFromMonth(e.target.value)}
-            />
-          </label>
-          <label className="flex items-center">
-            Bis
-            <input
-              className={`${fieldClass} period-month ml-2`}
-              type="month"
-              value={toMonth}
-              onChange={(e) => setToMonth(e.target.value)}
-            />
-          </label>
-        </div>
+        <PeriodFilter year={year} onYear={setYear} />
       </div>
       {error && <p className="text-red-700">{error}</p>}
 
-      {items
-        .map((d) => {
-          const related = txs.filter((t) => sameId(t.debtId, d._id));
-          return { d, related, closed: isDebtClosed(d, related) };
-        })
-        .filter(({ d }) => debtMonths(d).some((m) => m >= start && m <= end))
-        .sort((a, b) => Number(a.closed) - Number(b.closed))
-        .map(({ d, related, closed }) => {
+      {(() => {
+        const rows = items
+          .map((d) => {
+            const related = txs.filter((t) => sameId(t.debtId, d._id));
+            const closed = Boolean(d.archived) || isDebtClosed(d, related);
+            return { d, related, closed };
+          })
+          .filter(({ d }) => debtMonths(d).some((m) => m >= start && m <= end));
+        const active = rows.filter((row) => !row.closed);
+        const archived = rows.filter((row) => row.closed);
+        const renderRow = (row: (typeof rows)[number]) => {
+        const { d, related, closed } = row;
         const cells = restByMonth(d, related);
         const open = restNow(d, related);
-        const months = debtMonths(d);
+        const months = debtMonths(d).filter((m) => m >= start && m <= end);
         return (
           <article
             key={d._id}
@@ -178,37 +158,58 @@ export function DebtsPage() {
                   {euro(open)}
                 </span>
               </p>
-              <button
-                type="button"
-                className="ml-auto rounded-full border border-stone-300 px-4 py-1.5 text-sm font-semibold text-stone-700 hover:bg-stone-100"
-                onClick={() => {
-                  const ok = window.confirm(
-                    `Kauf „${d.title}“ wirklich löschen? Alle Raten werden entfernt.`,
-                  );
-                  if (!ok) {
-                    return;
-                  }
-                  api
-                    .deleteDebt(d._id)
-                    .then(() => {
-                      load();
-                      reload();
-                    })
-                    .catch((err: Error) => setError(err.message));
-                }}
-              >
-                Kauf löschen
-              </button>
+              {closed ? (
+                <button
+                  type="button"
+                  className="ml-auto rounded-lg border border-stone-300 px-4 py-1.5 text-sm font-semibold text-stone-700 hover:bg-stone-100"
+                  onClick={() => {
+                    const ok = window.confirm(
+                      `Kauf „${d.title}“ aus dem Archiv löschen? Alle Raten werden entfernt.`,
+                    );
+                    if (!ok) {
+                      return;
+                    }
+                    api
+                      .deleteDebt(d._id)
+                      .then(() => {
+                        load();
+                        reload();
+                      })
+                      .catch((err: Error) => setError(err.message));
+                  }}
+                >
+                  Löschen
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="ml-auto rounded-lg border border-stone-300 px-4 py-1.5 text-sm font-semibold text-stone-700 hover:bg-stone-100"
+                  onClick={() => {
+                    api
+                      .updateDebt(d._id, { archived: true })
+                      .then(load)
+                      .catch((err: Error) => setError(err.message));
+                  }}
+                >
+                  Schließen
+                </button>
+              )}
             </header>
             {months.length === 0 ? (
-              <p className="px-4 py-3 text-sm text-stone-400">Kein Monat in diesem Zeitraum.</p>
+              <p className="px-5 py-3 text-sm text-stone-400">Kein Monat in diesem Zeitraum.</p>
             ) : (
-              <div className="overflow-x-auto">
-              <table className="w-max min-w-full border-collapse text-left text-sm">
+              <div className={`overflow-x-auto ${closed ? 'bg-stone-100' : 'bg-white'}`}>
+              <table
+                className={`w-full table-fixed border-collapse text-left text-sm ${closed ? 'bg-stone-100' : 'bg-white'}`}
+                style={{ minWidth: `${months.length * 6.5}rem` }}
+              >
                 <thead className={`text-xs tracking-wide uppercase ${closed ? 'bg-stone-200 text-stone-600' : 'bg-stone-100 text-stone-500'}`}>
                   <tr>
-                    {months.map((m) => (
-                      <th key={m} className="min-w-[6.5rem] px-2 py-2 font-medium whitespace-nowrap">
+                    {months.map((m, index) => (
+                      <th
+                        key={m}
+                        className={`py-2 font-medium whitespace-nowrap ${index === 0 ? 'pl-5 pr-2 text-left' : 'px-2'}`}
+                      >
                         {shortMonthLabel(m)}
                       </th>
                     ))}
@@ -216,16 +217,23 @@ export function DebtsPage() {
                 </thead>
                 <tbody>
                   <tr>
-                    {months.map((m) => {
+                    {months.map((m, index) => {
                       const cell = cells[m];
                       const monthTx = related.find((t) => monthKey(t.date) === m);
                       const show = cell && monthTx && monthTx.amount > 0;
                       return (
-                        <td key={m} className="group/line min-w-[6.5rem] p-0 align-top">
+                        <td
+                          key={m}
+                          className={`group/line p-0 align-top text-left ${
+                            closed
+                              ? 'bg-stone-200 text-stone-600'
+                              : show
+                                ? plaqueClass(monthTx.date)
+                                : 'bg-white'
+                          }`}
+                        >
                           {show ? (
-                            <div
-                              className={`px-2 py-2 ${closed ? 'bg-stone-200 text-stone-600' : plaqueClass(monthTx.date)}`}
-                            >
+                            <div className={`py-2 ${index === 0 ? 'pl-5 pr-2' : 'px-2'}`}>
                               <p className="text-xs opacity-80">{formatDay(monthTx.date)}</p>
                               {isEditableMonth(m) ? (
                                 <AmountEdit
@@ -246,7 +254,9 @@ export function DebtsPage() {
                               <p className="mt-1 text-xs opacity-80">Rest {euro(cell.rest)}</p>
                             </div>
                           ) : (
-                            <span className="text-stone-300">—</span>
+                            <span className={`inline-block py-2 text-stone-300 ${index === 0 ? 'pl-5 pr-2' : 'px-2'}`}>
+                              —
+                            </span>
                           )}
                         </td>
                       );
@@ -258,7 +268,24 @@ export function DebtsPage() {
             )}
           </article>
         );
-      })}
+        };
+        return (
+          <>
+            {active.length === 0 && archived.length === 0 && (
+              <article className="rounded-2xl bg-white p-6 shadow-sm">
+                <p className="text-stone-600">Für diesen Zeitraum gibt es keine Daten.</p>
+              </article>
+            )}
+            {active.map(renderRow)}
+            {archived.length > 0 && (
+              <div className="space-y-4 pt-2">
+                <h2 className="text-lg font-semibold text-stone-500">Archiv</h2>
+                {archived.map(renderRow)}
+              </div>
+            )}
+          </>
+        );
+      })()}
     </section>
   );
 }

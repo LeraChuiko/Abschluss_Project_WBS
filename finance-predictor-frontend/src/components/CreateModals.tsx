@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { api } from '../api.ts';
 import { useFrei } from '../FreiContext.tsx';
-import { btnClass, currentMonthKey, fieldClass, todayIsoDate, toImageSrc } from '../lib/format.ts';
+import { btnClass, currentMonthKey, fieldClass, shiftMonth, todayIsoDate, toImageSrc } from '../lib/format.ts';
 import type { ExpenseBlock, IncomeGroup } from '../types.ts';
 import { Modal } from './Modal.tsx';
 
-type Kind = 'expense' | 'income' | 'debt' | 'savings' | null;
+type Kind = 'expense' | 'income' | 'debt' | 'savings' | 'hint' | null;
 
 export function CreateModals({ kind, onClose }: { kind: Kind; onClose: () => void }) {
   const { reload } = useFrei();
@@ -29,7 +29,9 @@ export function CreateModals({ kind, onClose }: { kind: Kind; onClose: () => voi
             ? 'Einnahme'
             : kind === 'debt'
               ? 'Rate'
-              : 'Sparziel'
+              : kind === 'hint'
+                ? 'Hinweis'
+                : 'Sparziel'
       }
       onClose={onClose}
     >
@@ -38,6 +40,7 @@ export function CreateModals({ kind, onClose }: { kind: Kind; onClose: () => voi
       {kind === 'income' && <IncomeForm onError={setError} onDone={done} />}
       {kind === 'debt' && <DebtForm onError={setError} onDone={done} />}
       {kind === 'savings' && <SavingsForm onError={setError} onDone={done} />}
+      {kind === 'hint' && <HinweisForm onError={setError} onDone={done} />}
     </Modal>
   );
 }
@@ -50,24 +53,34 @@ function expenseMonths(
   every: number,
   custom: number[],
 ): string[] {
-  const year = start.slice(0, 4);
   const startM = Number(start.slice(5, 7));
+  const horizon = `${start.slice(0, 4)}-12`;
   if (mode === 'once') {
     return [start];
   }
   if (mode === 'custom') {
     const months = custom.length > 0 ? custom : [startM];
-    return [...new Set(months)]
-      .sort((a, b) => a - b)
-      .map((m) => `${year}-${String(m).padStart(2, '0')}`);
+    const out: string[] = [];
+    const startY = Number(start.slice(0, 4));
+    const endY = Number(horizon.slice(0, 4));
+    for (let year = startY; year <= endY; year += 1) {
+      for (const m of [...new Set(months)].sort((a, b) => a - b)) {
+        const key = `${year}-${String(m).padStart(2, '0')}`;
+        if (key >= start && key <= horizon) {
+          out.push(key);
+        }
+      }
+    }
+    return out;
   }
   const step = Math.min(12, Math.max(1, every));
   const list: string[] = [];
-  for (let i = 0; i < 12; i += step) {
-    const m = ((startM - 1 + i) % 12) + 1;
-    list.push(`${year}-${String(m).padStart(2, '0')}`);
+  let cursor = start;
+  while (cursor <= horizon) {
+    list.push(cursor);
+    cursor = shiftMonth(cursor, step);
   }
-  return [...new Set(list)].sort();
+  return list;
 }
 
 function ExpenseForm({
@@ -200,7 +213,9 @@ function ExpenseForm({
         </div>
       )}
       <p className="text-xs text-stone-500">
-        {months.map((m) => monthShort[Number(m.slice(5, 7)) - 1]).join(', ')}
+        {mode === 'once'
+          ? monthShort[Number(month.slice(5, 7)) - 1]
+          : `Wiederholt sich auch in den nächsten Jahren (${months.length} Monate geplant)`}
       </p>
       <label className="block text-sm text-stone-600">
         Startmonat
@@ -259,13 +274,18 @@ function IncomeForm({
             return [payload(date)];
           }
           const startMonth = date.slice(0, 7);
-          const year = startMonth.slice(0, 4);
           const current = currentMonthKey();
           const day = Number(date.slice(8, 10)) > 28 ? '01' : date.slice(8, 10);
-          const yearMonths = Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`);
-          return yearMonths
-            .filter((month) => month >= startMonth && (month === startMonth || month >= current))
-            .map((month) => payload(`${month}-${day}`));
+          const horizon = `${startMonth.slice(0, 4)}-12`;
+          const months: string[] = [];
+          let cursor = startMonth;
+          while (cursor <= horizon) {
+            if (cursor === startMonth || cursor >= current) {
+              months.push(cursor);
+            }
+            cursor = shiftMonth(cursor, 1);
+          }
+          return months.map((month) => payload(`${month}-${day}`));
         })();
 
         Promise.all(jobs)
@@ -279,9 +299,9 @@ function IncomeForm({
       <select className={`${fieldClass} w-full`} value={group} onChange={(e) => setGroup(e.target.value as IncomeGroup)}>
         <option value="salary">Gehalt / Job</option>
         <option value="business">Business</option>
+        <option value="investment">Investitionen</option>
         <option value="freelance">Freelance</option>
         <option value="gift">Geschenke / Wunder</option>
-        <option value="investment">Investitionen</option>
       </select>
       <label className="flex items-center gap-2 text-sm text-stone-600">
         <input
@@ -381,6 +401,157 @@ function SavingsForm({
       <input className={`${fieldClass} w-full`} placeholder="Name" value={title} onChange={(e) => setTitle(e.target.value)} required />
       <input className={`${fieldClass} w-full`} type="number" min="0.01" step="0.01" placeholder="Zielsumme" value={targetAmount} onChange={(e) => setTargetAmount(e.target.value)} required />
       <input className={`${fieldClass} w-full`} placeholder="Foto-URL" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} />
+      <div className="flex justify-end pt-1">
+        <button className={btnClass} type="submit">
+          Speichern
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function HinweisForm({
+  onDone,
+  onError,
+}: {
+  onDone: () => void;
+  onError: (msg: string) => void;
+}) {
+  const [title, setTitle] = useState('');
+  const [note, setNote] = useState('');
+  const [month, setMonth] = useState(todayIsoDate().slice(0, 7));
+  const [mode, setMode] = useState<'once' | 'every' | 'custom'>('once');
+  const [every, setEvery] = useState(12);
+  const [custom, setCustom] = useState<number[]>([]);
+  const [endMonth, setEndMonth] = useState(() => shiftMonth(todayIsoDate().slice(0, 7), 47));
+
+  return (
+    <form
+      className="space-y-3"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (mode !== 'once' && endMonth < month) {
+          onError('Ende muss nach dem Startmonat liegen');
+          return;
+        }
+        api
+          .createHinweis({
+            title,
+            note: note.trim(),
+            month,
+            endMonth: mode === 'once' ? month : endMonth,
+            everyMonths: mode === 'every' ? every : 0,
+            customMonths: mode === 'custom' ? custom : [],
+          })
+          .then(onDone)
+          .catch((err: Error) => onError(err.message));
+      }}
+    >
+      <input
+        className={`${fieldClass} w-full`}
+        placeholder="Woran erinnern? z. B. Hefte kaufen"
+        value={title}
+        maxLength={80}
+        onChange={(e) => setTitle(e.target.value)}
+        required
+      />
+      <label className="block text-sm text-stone-600">
+        Erster Monat
+        <input className={`${fieldClass} mt-1 w-full`} type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
+      </label>
+      <select
+        className={`${fieldClass} w-full`}
+        value={mode}
+        onChange={(e) => {
+          const next = e.target.value as 'once' | 'every' | 'custom';
+          setMode(next);
+          if (next === 'custom' && custom.length === 0) {
+            setCustom([Number(month.slice(5, 7))]);
+          }
+        }}
+      >
+        <option value="once">Einmal — nur dieser Monat</option>
+        <option value="every">Regelmäßig — alle … Monate</option>
+        <option value="custom">Eigene Monate im Jahr</option>
+      </select>
+      {mode === 'every' && (
+        <div className="space-y-2">
+          <div className="flex flex-wrap gap-2">
+            {[
+              { n: 12, label: 'Jahr' },
+              { n: 6, label: 'Halbjahr' },
+              { n: 3, label: 'Saison' },
+              { n: 1, label: 'Monat' },
+            ].map((opt) => (
+              <button
+                key={opt.n}
+                type="button"
+                className={`rounded-full px-3 py-1 text-sm ${
+                  every === opt.n ? 'bg-violet-700 text-white' : 'border border-stone-300 text-stone-700'
+                }`}
+                onClick={() => setEvery(opt.n)}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          <label className="block text-sm text-stone-600">
+            Alle wie viele Monate?
+            <input
+              className={`${fieldClass} mt-1 w-full`}
+              type="number"
+              min={1}
+              max={12}
+              value={every}
+              onChange={(e) => setEvery(Number(e.target.value) || 1)}
+            />
+          </label>
+        </div>
+      )}
+      {mode === 'custom' && (
+        <div className="grid grid-cols-4 gap-2">
+          {monthShort.map((label, index) => {
+            const value = index + 1;
+            const checked = custom.includes(value);
+            return (
+              <label key={label} className="flex items-center gap-1.5 text-sm text-stone-700">
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => {
+                    setCustom((prev) =>
+                      checked ? prev.filter((m) => m !== value) : [...prev, value],
+                    );
+                  }}
+                />
+                {label}
+              </label>
+            );
+          })}
+        </div>
+      )}
+      {mode !== 'once' && (
+        <label className="block text-sm text-stone-600">
+          Letzter Monat (z. B. Ende Grundschule)
+          <input
+            className={`${fieldClass} mt-1 w-full`}
+            type="month"
+            value={endMonth}
+            onChange={(e) => setEndMonth(e.target.value)}
+          />
+        </label>
+      )}
+      <label className="block text-sm text-stone-600">
+        Notiz, optional ({note.length}/200)
+        <textarea
+          className={`${fieldClass} mt-1 w-full resize-none`}
+          rows={3}
+          maxLength={200}
+          placeholder="Kurz, z. B. für die Grundschule"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+        />
+      </label>
       <div className="flex justify-end pt-1">
         <button className={btnClass} type="submit">
           Speichern

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './AuthContext.tsx';
 import { CreateModals } from './components/CreateModals.tsx';
+import { resetToCurrentYear } from './components/PeriodFilter.tsx';
 import { FreiProvider, useFrei } from './FreiContext.tsx';
 import { euro } from './lib/format.ts';
 import { DashboardPage } from './pages/DashboardPage.tsx';
@@ -19,7 +20,9 @@ const links = [
   { to: '/hinweise', label: 'Hinweise' },
 ];
 
-function actionForPath(pathname: string): { kind: 'expense' | 'income' | 'debt' | 'savings'; label: string } | null {
+function actionForPath(
+  pathname: string,
+): { kind: 'expense' | 'income' | 'debt' | 'savings' | 'hint'; label: string } | null {
   if (pathname === '/') {
     return { kind: 'expense', label: 'Ausgabe' };
   }
@@ -31,6 +34,9 @@ function actionForPath(pathname: string): { kind: 'expense' | 'income' | 'debt' 
   }
   if (pathname.startsWith('/sparziele')) {
     return { kind: 'savings', label: 'Sparziel' };
+  }
+  if (pathname.startsWith('/hinweise')) {
+    return { kind: 'hint', label: 'Hinweis' };
   }
   return null;
 }
@@ -60,9 +66,9 @@ function Shell() {
         </div>
         <div className="mx-auto max-w-6xl px-4 py-3">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <Link to="/" className="block leading-tight">
+            <Link to="/" className="block leading-tight" onClick={resetToCurrentYear}>
               <p className="text-xs font-semibold tracking-wide text-violet-700 uppercase">
-                Personal Finance
+                Familien Finance
               </p>
               <p className="text-lg font-bold">Predictor</p>
             </Link>

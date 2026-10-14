@@ -1,7 +1,7 @@
 {
   "name": "finance-tracker-backend",
   "version": "1.0.0",
-  "description": "REST API for Personal Finance Tracker",
+  "description": "REST API for Familien Finance Predictor",
   "main": "dist/app.js",
   "type": "module",
   "scripts": {
@@ -9,7 +9,7 @@
     "prebuild": "rm -rf dist",
     "build": "tsc",
     "prestart": "npm run build",
-    "start": "node --env-file=.env dist/app.js"
+    "start": "node dist/app.js"
   },
   "keywords": [],
   "author": "",
