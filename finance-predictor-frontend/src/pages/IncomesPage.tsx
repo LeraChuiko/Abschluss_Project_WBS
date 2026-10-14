@@ -24,7 +24,7 @@ function formatDay(iso: string): string {
 
 export function IncomesPage() {
   const { reload } = useFrei();
-  const { year, setYear, start, end, setStart, setEnd } = useCalendarPeriod();
+  const { year, setYear, start, end } = useCalendarPeriod();
   const [incomes, setIncomes] = useState<Transaction[]>([]);
   const [error, setError] = useState('');
 
@@ -76,14 +76,7 @@ export function IncomesPage() {
             <p className="text-sm font-semibold text-stone-500">Gewählter Zeitraum nach Kategorie</p>
             <p className="mt-1 text-2xl font-bold tabular-nums">{euro(total)}</p>
           </div>
-          <PeriodFilter
-            year={year}
-            onYear={setYear}
-            start={start}
-            end={end}
-            onStart={setStart}
-            onEnd={setEnd}
-          />
+          <PeriodFilter year={year} onYear={setYear} />
         </div>
         <ul className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
           {byGroup.map((g) => (
