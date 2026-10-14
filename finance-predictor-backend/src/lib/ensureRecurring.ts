@@ -138,6 +138,9 @@ const runEnsureRecurringForRange = async (from: string, to: string): Promise<voi
     if (!incomeForecast && !PflichtForecast) {
       continue;
     }
+    if (last.amount <= 0) {
+      continue;
+    }
 
     const expected = expectedMonths(keys, first, until);
     const have = new Set(keys);
