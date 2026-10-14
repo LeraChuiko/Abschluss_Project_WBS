@@ -155,10 +155,7 @@ function MonthSheet({ table, onError }: { table: MonthTable; onError: (msg: stri
 
       {blocks.map((b) => {
         const rows = expenses.filter((t) => {
-          if (t.expenseBlock !== b.key) {
-            return false;
-          }
-          if (b.key === 'periodic' && t.amount === 0) {
+          if (t.expenseBlock !== b.key || t.amount === 0) {
             return false;
           }
           return true;
@@ -194,24 +191,30 @@ function Line({
   return (
     <div className="group/line relative flex items-start gap-2 border-b border-stone-200/70 py-1.5 last:border-0">
       {locked ? (
-        <p className="w-28 shrink-0 tabular-nums">{euro(tx.amount)}</p>
+        <>
+          <p className="w-28 shrink-0 tabular-nums">{euro(tx.amount)}</p>
+          <div className="min-w-0">
+            <p className="leading-tight font-medium break-words">{tx.title}</p>
+            {date && <p className="text-xs text-stone-500">{formatDay(date)}</p>}
+          </div>
+        </>
       ) : (
-        <AmountEdit
-          value={tx.amount}
-          canEdit={true}
-          onSave={(amount) => {
-            onError('');
-            api
-              .updateTransaction(tx._id, { amount })
-              .then(() => reload())
-              .catch((err: Error) => onError(err.message));
-          }}
-        />
+        <div className="min-w-0 flex-1">
+          <AmountEdit
+            value={tx.amount}
+            name={tx.title}
+            canEdit={true}
+            onSave={(amount, title) => {
+              onError('');
+              api
+                .updateTransaction(tx._id, { amount, ...(title ? { title } : {}) })
+                .then(() => reload())
+                .catch((err: Error) => onError(err.message));
+            }}
+          />
+          {date && <p className="text-xs text-stone-500">{formatDay(date)}</p>}
+        </div>
       )}
-      <div className="min-w-0">
-        <p className="leading-tight font-medium break-words">{tx.title}</p>
-        {date && <p className="text-xs text-stone-500">{formatDay(date)}</p>}
-      </div>
     </div>
   );
 }

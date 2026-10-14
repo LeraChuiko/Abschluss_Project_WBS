@@ -109,20 +109,29 @@ export function IncomesPage() {
                     {list.map((t) => (
                       <div key={t._id} className="group/line flex items-start gap-2 py-1.5">
                         {isEditableMonth(month) ? (
-                          <AmountEdit
-                            value={t.amount}
-                            canEdit={true}
-                            onSave={(amount) => {
-                              api.updateTransaction(t._id, { amount }).then(() => reload()).catch(() => {});
-                            }}
-                          />
+                          <div className="min-w-0 flex-1">
+                            <AmountEdit
+                              value={t.amount}
+                              name={t.title}
+                              canEdit={true}
+                              onSave={(amount, title) => {
+                                api
+                                  .updateTransaction(t._id, { amount, ...(title ? { title } : {}) })
+                                  .then(() => reload())
+                                  .catch(() => {});
+                              }}
+                            />
+                            <p className="text-xs text-stone-500">{formatDay(t.date)}</p>
+                          </div>
                         ) : (
-                          <p className="w-28 shrink-0 tabular-nums">{euro(t.amount)}</p>
+                          <>
+                            <p className="w-28 shrink-0 tabular-nums">{euro(t.amount)}</p>
+                            <div className="min-w-0">
+                              <p className="leading-tight font-medium break-words">{t.title}</p>
+                              <p className="text-xs text-stone-500">{formatDay(t.date)}</p>
+                            </div>
+                          </>
                         )}
-                        <div className="min-w-0">
-                          <p className="leading-tight font-medium break-words">{t.title}</p>
-                          <p className="text-xs text-stone-500">{formatDay(t.date)}</p>
-                        </div>
                       </div>
                     ))}
                   </div>

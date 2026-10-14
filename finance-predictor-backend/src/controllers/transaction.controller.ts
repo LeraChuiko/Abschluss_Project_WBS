@@ -166,21 +166,45 @@ export const updateTransaction = async (
     }
     await doc.save();
 
-    if (typeof req.body.amount === 'number' && doc.type === 'income' && doc.seriesId) {
+    if (doc.seriesId) {
       const from = new Date(`${docMonth}-01T00:00:00.000Z`);
-      await Transaction.updateMany(
-        {
-          type: 'income',
-          seriesId: doc.seriesId,
-          date: { $gte: from },
-        },
-        { amount: req.body.amount },
-      );
+      const seriesPatch: Record<string, unknown> = {};
+      if (typeof req.body.amount === 'number') {
+        seriesPatch.amount = req.body.amount;
+      }
+      if (typeof req.body.title === 'string') {
+        seriesPatch.title = req.body.title;
+      }
+      if (Object.keys(seriesPatch).length > 0) {
+        if (doc.type === 'income') {
+          await Transaction.updateMany(
+            {
+              type: 'income',
+              seriesId: doc.seriesId,
+              date: { $gte: from },
+            },
+            seriesPatch,
+          );
+        } else if (doc.type === 'expense' && !doc.debtId && !doc.savingsGoalId) {
+          const linked = await Transaction.countDocuments({ seriesId: doc.seriesId });
+          if (linked > 1) {
+            await Transaction.updateMany(
+              {
+                type: 'expense',
+                seriesId: doc.seriesId,
+                date: { $gte: from },
+              },
+              seriesPatch,
+            );
+          }
+        }
+      }
     }
 
     if (
       typeof req.body.amount === 'number' &&
       doc.type === 'expense' &&
+      doc.expenseBlock === 'fixed' &&
       !doc.debtId &&
       !doc.savingsGoalId
     ) {
@@ -188,16 +212,7 @@ export const updateTransaction = async (
       const linked = doc.seriesId
         ? await Transaction.countDocuments({ seriesId: doc.seriesId })
         : 0;
-      if (linked > 1 && doc.seriesId) {
-        await Transaction.updateMany(
-          {
-            type: 'expense',
-            seriesId: doc.seriesId,
-            date: { $gte: from },
-          },
-          { amount: req.body.amount },
-        );
-      } else if (doc.expenseBlock === 'fixed') {
+      if (linked <= 1) {
         await Transaction.updateMany(
           {
             type: 'expense',
