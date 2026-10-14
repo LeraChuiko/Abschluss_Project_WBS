@@ -111,7 +111,7 @@ function cardClass(row: Row, now: string): string {
 
 export function ForecastPage() {
   const now = currentMonthKey();
-  const { year, setYear, start, end, setStart, setEnd } = useCalendarPeriod();
+  const { year, setYear, start, end } = useCalendarPeriod();
   const [items, setItems] = useState<Array<Hinweis>>([]);
   const [error, setError] = useState('');
 
@@ -241,14 +241,7 @@ export function ForecastPage() {
             </li>
           </ul>
         </div>
-        <PeriodFilter
-          year={year}
-          onYear={setYear}
-          start={start}
-          end={end}
-          onStart={setStart}
-          onEnd={setEnd}
-        />
+        <PeriodFilter year={year} onYear={setYear} />
       </div>
       {error && <p className="text-red-700">{error}</p>}
 

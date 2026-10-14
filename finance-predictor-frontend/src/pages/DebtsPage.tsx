@@ -82,7 +82,7 @@ function plaqueClass(iso: string): string {
 
 export function DebtsPage() {
   const { reload } = useFrei();
-  const { year, setYear, start, end, setStart, setEnd } = useCalendarPeriod();
+  const { year, setYear, start, end } = useCalendarPeriod();
   const [items, setItems] = useState<Array<Debt>>([]);
   const [txs, setTxs] = useState<Array<Transaction>>([]);
   const [error, setError] = useState('');
@@ -123,14 +123,7 @@ export function DebtsPage() {
             </li>
           </ul>
         </div>
-        <PeriodFilter
-          year={year}
-          onYear={setYear}
-          start={start}
-          end={end}
-          onStart={setStart}
-          onEnd={setEnd}
-        />
+        <PeriodFilter year={year} onYear={setYear} />
       </div>
       {error && <p className="text-red-700">{error}</p>}
 
