@@ -19,8 +19,11 @@ const berlinToday = (): string => {
 const berlinMonthNow = (): string => berlinToday().slice(0, 7);
 
 const paidOf = async (goalId: unknown): Promise<number> => {
-  const rows = await Transaction.find({ savingsGoalId: goalId, type: 'expense' });
-  return Number(rows.reduce((sum, item) => sum + item.amount, 0).toFixed(2));
+  const rows = await Transaction.find({
+    savingsGoalId: goalId,
+    type: 'expense',
+  } as never).lean();
+  return Number(rows.reduce((sum, item) => sum + (item.amount ?? 0), 0).toFixed(2));
 };
 
 const withPaid = async (doc: InstanceType<typeof SavingsGoal>) => {

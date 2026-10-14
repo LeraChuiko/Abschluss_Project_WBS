@@ -1,6 +1,19 @@
 import mongoose from 'mongoose';
 
-const transactionSchema = new mongoose.Schema(
+export type TransactionDoc = {
+  type: 'income' | 'expense';
+  title: string;
+  amount: number;
+  date: Date;
+  incomeGroup?: 'salary' | 'business' | 'freelance' | 'gift' | 'investment' | null;
+  expenseBlock?: 'fixed' | 'periodic' | 'variable' | null;
+  importantDate?: boolean;
+  seriesId?: string;
+  debtId?: mongoose.Types.ObjectId;
+  savingsGoalId?: mongoose.Types.ObjectId;
+};
+
+const transactionSchema = new mongoose.Schema<TransactionDoc>(
   {
     type: { type: String, enum: ['income', 'expense'], required: true },
     title: { type: String, required: true, trim: true },
@@ -22,4 +35,4 @@ const transactionSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-export const Transaction = mongoose.model('Transaction', transactionSchema);
+export const Transaction = mongoose.model<TransactionDoc>('Transaction', transactionSchema);

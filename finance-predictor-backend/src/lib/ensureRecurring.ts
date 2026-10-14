@@ -16,7 +16,8 @@ const berlinMonthNow = (): string => {
 const monthUtc = (date: Date): string => date.toISOString().slice(0, 7);
 
 const shiftMonth = (month: string, add: number): string => {
-  const [year, m] = month.split('-').map(Number);
+  const year = Number(month.slice(0, 4));
+  const m = Number(month.slice(5, 7));
   const date = new Date(Date.UTC(year, m - 1 + add, 1));
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
 };
@@ -43,12 +44,16 @@ const expectedMonths = (keys: string[], first: string, until: string): Set<strin
 
   const diffs: number[] = [];
   for (let i = 1; i < unique.length; i += 1) {
-    const [y1, m1] = unique[i - 1].split('-').map(Number);
-    const [y2, m2] = unique[i].split('-').map(Number);
+    const prev = unique[i - 1] ?? '';
+    const next = unique[i] ?? '';
+    const y1 = Number(prev.slice(0, 4));
+    const m1 = Number(prev.slice(5, 7));
+    const y2 = Number(next.slice(0, 4));
+    const m2 = Number(next.slice(5, 7));
     diffs.push(y2 * 12 + m2 - (y1 * 12 + m1));
   }
-  const step = diffs.every((d) => d === diffs[0]) ? diffs[0] : 0;
-  if (step > 0) {
+  const step = diffs[0] ?? 0;
+  if (step > 0 && diffs.every((d) => d === step)) {
     let cursor = first;
     while (cursor <= until) {
       out.add(cursor);
@@ -122,7 +127,8 @@ const runEnsureRecurringForRange = async (from: string, to: string): Promise<voi
     const sample = items[0];
     const keys = items.map((item) => monthUtc(item.date));
     const first = keys[0];
-    if (until < first) {
+    const last = items[items.length - 1];
+    if (!sample || !first || !last || until < first) {
       continue;
     }
 
@@ -135,7 +141,6 @@ const runEnsureRecurringForRange = async (from: string, to: string): Promise<voi
 
     const expected = expectedMonths(keys, first, until);
     const have = new Set(keys);
-    const last = items[items.length - 1];
     const dayRaw = last.date.getUTCDate();
     const day = dayRaw > 28 ? '01' : String(dayRaw).padStart(2, '0');
 
