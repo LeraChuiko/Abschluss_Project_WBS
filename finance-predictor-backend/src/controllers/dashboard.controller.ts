@@ -35,7 +35,10 @@ const emptyTotals = (month: string): Totals => ({
   },
 });
 
-const addItem = (totals: Totals, item: { type: string; amount: number; incomeGroup?: string; expenseBlock?: string }) => {
+const addItem = (
+  totals: Totals,
+  item: { type: string; amount: number; incomeGroup?: string | null; expenseBlock?: string | null },
+) => {
   if (item.type === 'income') {
     totals.incomeTotal += item.amount;
     if (item.incomeGroup && item.incomeGroup in totals.incomeByGroup) {

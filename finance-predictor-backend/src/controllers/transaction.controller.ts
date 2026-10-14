@@ -63,7 +63,7 @@ const spreadDebtLeftover = async (debtId: unknown, fromMonth: string): Promise<v
   if (!debt) {
     return;
   }
-  const related = await Transaction.find({ debtId }).sort({ date: 1 });
+  const related = await Transaction.find({ debtId } as never).sort({ date: 1 }).lean();
   const paidSoFar = related
     .filter((item) => monthUtc(item.date) <= fromMonth)
     .reduce((sum, item) => sum + item.amount, 0);
@@ -72,6 +72,9 @@ const spreadDebtLeftover = async (debtId: unknown, fromMonth: string): Promise<v
   const rate = debt.monthlyPayment > 0 ? debt.monthlyPayment : leftover;
   for (let i = 0; i < later.length; i += 1) {
     const row = later[i];
+    if (!row) {
+      continue;
+    }
     const isLast = i === later.length - 1;
     const next = leftover <= 0 ? 0 : isLast ? leftover : Math.min(rate, leftover);
     const amount = Number(next.toFixed(2));
