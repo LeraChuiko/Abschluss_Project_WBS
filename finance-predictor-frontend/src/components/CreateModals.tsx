@@ -99,17 +99,22 @@ function ExpenseForm({
   const [month, setMonth] = useState(todayIsoDate().slice(0, 7));
   const [importantDate, setImportantDate] = useState(false);
   const [date, setDate] = useState(todayIsoDate());
-  const months = expenseMonths(month, mode, every, custom);
+  const [saving, setSaving] = useState(false);
+  const months = [...new Set(expenseMonths(month, mode, every, custom))];
 
   return (
     <form
       className="space-y-3"
       onSubmit={(e) => {
         e.preventDefault();
+        if (saving) {
+          return;
+        }
         if (months.length === 0) {
           onError('Bitte mindestens einen Monat wählen');
           return;
         }
+        setSaving(true);
         const seriesId = months.length > 1 ? crypto.randomUUID() : undefined;
         const payload = (dateValue: string, showDate: boolean) =>
           api.createTransaction({
@@ -132,7 +137,10 @@ function ExpenseForm({
 
         Promise.all(jobs)
           .then(onDone)
-          .catch((err: Error) => onError(err.message));
+          .catch((err: Error) => {
+            setSaving(false);
+            onError(err.message);
+          });
       }}
     >
       <input className={`${fieldClass} w-full`} placeholder="Name" value={title} onChange={(e) => setTitle(e.target.value)} required />
@@ -238,8 +246,8 @@ function ExpenseForm({
         <input className={`${fieldClass} w-full`} type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
       )}
       <div className="flex justify-end pt-1">
-        <button className={btnClass} type="submit">
-          Speichern
+        <button className={btnClass} type="submit" disabled={saving}>
+          {saving ? 'Speichern…' : 'Speichern'}
         </button>
       </div>
     </form>

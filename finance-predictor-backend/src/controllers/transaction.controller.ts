@@ -108,7 +108,13 @@ export const updateTransaction = async (
 
     const docMonth = monthUtc(doc.date);
     if (docMonth < berlinMonthNow()) {
-      res.status(409).json({ message: 'Vergangene Monate können nicht geändert werden' });
+      if (typeof req.body.amount !== 'number' || req.body.amount !== 0) {
+        res.status(409).json({ message: 'Vergangene Monate können nicht geändert werden' });
+        return;
+      }
+      doc.amount = 0;
+      await doc.save();
+      res.status(200).json(doc);
       return;
     }
 
