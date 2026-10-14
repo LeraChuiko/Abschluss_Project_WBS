@@ -58,7 +58,7 @@ function Shell() {
           </p>
           <button
             type="button"
-            className="shrink-0 rounded-full border border-stone-300 px-3 py-1.5 font-semibold text-stone-700 hover:bg-stone-100"
+            className="shrink-0 cursor-pointer rounded-full border border-stone-300 px-3 py-1.5 font-semibold text-stone-700 hover:bg-stone-100 active:bg-stone-200"
             onClick={logout}
           >
             Abmelden
@@ -99,7 +99,7 @@ function Shell() {
             {action && (
               <button
                 type="button"
-                className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-violet-800"
+                className="cursor-pointer rounded-full bg-white px-4 py-2 text-sm font-semibold text-violet-800 hover:bg-violet-50 active:bg-violet-100"
                 onClick={() => setOpen(true)}
               >
                 + {action.label}

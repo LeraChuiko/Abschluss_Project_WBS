@@ -87,7 +87,7 @@ function HintIcon({
       <button
         type="button"
         aria-label={label}
-        className={`inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-stone-300 bg-white text-stone-600 shadow-sm transition ${hover}`}
+        className={`inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-stone-300 bg-white text-stone-600 shadow-sm transition active:brightness-90 ${hover}`}
         onClick={onClick}
       >
         {children}
@@ -111,7 +111,7 @@ function cardClass(row: Row, now: string): string {
 
 export function ForecastPage() {
   const now = currentMonthKey();
-  const { year, setYear, start, end } = useCalendarPeriod();
+  const { year, setYear, start, end, setStart, setEnd } = useCalendarPeriod();
   const [items, setItems] = useState<Array<Hinweis>>([]);
   const [error, setError] = useState('');
 
@@ -241,7 +241,14 @@ export function ForecastPage() {
             </li>
           </ul>
         </div>
-        <PeriodFilter year={year} onYear={setYear} />
+        <PeriodFilter
+          year={year}
+          onYear={setYear}
+          start={start}
+          end={end}
+          onStart={setStart}
+          onEnd={setEnd}
+        />
       </div>
       {error && <p className="text-red-700">{error}</p>}
 

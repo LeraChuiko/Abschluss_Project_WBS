@@ -82,7 +82,7 @@ function plaqueClass(iso: string): string {
 
 export function DebtsPage() {
   const { reload } = useFrei();
-  const { year, setYear, start, end } = useCalendarPeriod();
+  const { year, setYear, start, end, setStart, setEnd } = useCalendarPeriod();
   const [items, setItems] = useState<Array<Debt>>([]);
   const [txs, setTxs] = useState<Array<Transaction>>([]);
   const [error, setError] = useState('');
@@ -123,7 +123,14 @@ export function DebtsPage() {
             </li>
           </ul>
         </div>
-        <PeriodFilter year={year} onYear={setYear} />
+        <PeriodFilter
+          year={year}
+          onYear={setYear}
+          start={start}
+          end={end}
+          onStart={setStart}
+          onEnd={setEnd}
+        />
       </div>
       {error && <p className="text-red-700">{error}</p>}
 
@@ -141,7 +148,7 @@ export function DebtsPage() {
         const { d, related, closed } = row;
         const cells = restByMonth(d, related);
         const open = restNow(d, related);
-        const months = debtMonths(d).filter((m) => m >= start && m <= end);
+        const months = debtMonths(d);
         return (
           <article
             key={d._id}
@@ -161,7 +168,7 @@ export function DebtsPage() {
               {closed ? (
                 <button
                   type="button"
-                  className="ml-auto rounded-lg border border-stone-300 px-4 py-1.5 text-sm font-semibold text-stone-700 hover:bg-stone-100"
+                  className="ml-auto cursor-pointer rounded-lg border border-stone-300 px-4 py-1.5 text-sm font-semibold text-stone-700 hover:bg-stone-100 active:bg-stone-200"
                   onClick={() => {
                     const ok = window.confirm(
                       `Kauf „${d.title}“ aus dem Archiv löschen? Alle Raten werden entfernt.`,
@@ -183,7 +190,7 @@ export function DebtsPage() {
               ) : (
                 <button
                   type="button"
-                  className="ml-auto rounded-lg border border-stone-300 px-4 py-1.5 text-sm font-semibold text-stone-700 hover:bg-stone-100"
+                  className="ml-auto cursor-pointer rounded-lg border border-stone-300 px-4 py-1.5 text-sm font-semibold text-stone-700 hover:bg-stone-100 active:bg-stone-200"
                   onClick={() => {
                     api
                       .updateDebt(d._id, { archived: true })
@@ -201,7 +208,9 @@ export function DebtsPage() {
               <div className={`overflow-x-auto ${closed ? 'bg-stone-100' : 'bg-white'}`}>
               <table
                 className={`w-full table-fixed border-collapse text-left text-sm ${closed ? 'bg-stone-100' : 'bg-white'}`}
-                style={{ minWidth: `${months.length * 6.5}rem` }}
+                style={
+                  months.length > 12 ? { minWidth: `${months.length * 5.5}rem` } : undefined
+                }
               >
                 <thead className={`text-xs tracking-wide uppercase ${closed ? 'bg-stone-200 text-stone-600' : 'bg-stone-100 text-stone-500'}`}>
                   <tr>

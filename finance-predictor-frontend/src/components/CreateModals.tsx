@@ -94,7 +94,7 @@ function ExpenseForm({
   const [amount, setAmount] = useState('');
   const [block, setBlock] = useState<ExpenseBlock>('variable');
   const [mode, setMode] = useState<'once' | 'every' | 'custom'>('once');
-  const [every, setEvery] = useState(3);
+  const [every, setEvery] = useState(1);
   const [custom, setCustom] = useState<number[]>([]);
   const [month, setMonth] = useState(todayIsoDate().slice(0, 7));
   const [importantDate, setImportantDate] = useState(false);
@@ -147,6 +147,9 @@ function ExpenseForm({
         onChange={(e) => {
           const next = e.target.value as 'once' | 'every' | 'custom';
           setMode(next);
+          if (next === 'every') {
+            setEvery(1);
+          }
           if (next === 'custom' && custom.length === 0) {
             setCustom([Number(month.slice(5, 7))]);
           }
@@ -168,8 +171,8 @@ function ExpenseForm({
               <button
                 key={opt.n}
                 type="button"
-                className={`rounded-full px-3 py-1 text-sm ${
-                  every === opt.n ? 'bg-violet-700 text-white' : 'border border-stone-300 text-stone-700'
+                className={`cursor-pointer rounded-full px-3 py-1 text-sm ${
+                  every === opt.n ? 'bg-violet-700 text-white' : 'border border-stone-300 text-stone-700 hover:bg-stone-100'
                 }`}
                 onClick={() => setEvery(opt.n)}
               >
@@ -215,7 +218,9 @@ function ExpenseForm({
       <p className="text-xs text-stone-500">
         {mode === 'once'
           ? monthShort[Number(month.slice(5, 7)) - 1]
-          : `Wiederholt sich auch in den nächsten Jahren (${months.length} Monate geplant)`}
+          : block === 'fixed'
+            ? `Wiederholt sich auch in den nächsten Jahren (${months.length} Monate geplant)`
+            : `Bis Dezember ${month.slice(0, 4)} (${months.length} Monate geplant)`}
       </p>
       <label className="block text-sm text-stone-600">
         Startmonat
@@ -486,8 +491,8 @@ function HinweisForm({
               <button
                 key={opt.n}
                 type="button"
-                className={`rounded-full px-3 py-1 text-sm ${
-                  every === opt.n ? 'bg-violet-700 text-white' : 'border border-stone-300 text-stone-700'
+                className={`cursor-pointer rounded-full px-3 py-1 text-sm ${
+                  every === opt.n ? 'bg-violet-700 text-white' : 'border border-stone-300 text-stone-700 hover:bg-stone-100'
                 }`}
                 onClick={() => setEvery(opt.n)}
               >
