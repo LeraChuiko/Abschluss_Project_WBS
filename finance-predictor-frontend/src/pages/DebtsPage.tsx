@@ -108,22 +108,22 @@ export function DebtsPage() {
 
   return (
     <section className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
+      <div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-3xl font-bold">Raten</h1>
-          <ul className="mt-3 flex flex-wrap gap-3 text-xs text-stone-600">
-            <li className="flex items-center gap-1.5">
-              <span className="h-3 w-3 rounded-sm bg-emerald-200" /> Bezahlt
-            </li>
-            <li className="flex items-center gap-1.5">
-              <span className="h-3 w-3 rounded-sm bg-amber-200" /> Erwartet
-            </li>
-            <li className="flex items-center gap-1.5">
-              <span className="h-3 w-3 rounded-sm bg-stone-300" /> Geschlossen
-            </li>
-          </ul>
+          <PeriodFilter year={year} onYear={setYear} />
         </div>
-        <PeriodFilter year={year} onYear={setYear} />
+        <ul className="mt-3 flex flex-wrap gap-3 text-xs text-stone-600">
+          <li className="flex items-center gap-1.5">
+            <span className="h-3 w-3 rounded-sm bg-emerald-200" /> Bezahlt
+          </li>
+          <li className="flex items-center gap-1.5">
+            <span className="h-3 w-3 rounded-sm bg-amber-200" /> Erwartet
+          </li>
+          <li className="flex items-center gap-1.5">
+            <span className="h-3 w-3 rounded-sm bg-stone-300" /> Geschlossen
+          </li>
+        </ul>
       </div>
       {error && <p className="text-red-700">{error}</p>}
 
@@ -200,10 +200,8 @@ export function DebtsPage() {
             ) : (
               <div className={`overflow-x-auto ${closed ? 'bg-stone-100' : 'bg-white'}`}>
               <table
-                className={`w-full table-fixed border-collapse text-left text-sm ${closed ? 'bg-stone-100' : 'bg-white'}`}
-                style={
-                  months.length > 12 ? { minWidth: `${months.length * 5.5}rem` } : undefined
-                }
+                className={`w-full table-fixed border-collapse text-left text-sm min-w-[max(100%,calc(var(--c)*100%/6))] xl:min-w-[max(100%,calc(var(--c)*100%/10))] ${closed ? 'bg-stone-100' : 'bg-white'}`}
+                style={{ ['--c' as string]: String(months.length) }}
               >
                 <thead className={`text-xs tracking-wide uppercase ${closed ? 'bg-stone-200 text-stone-600' : 'bg-stone-100 text-stone-500'}`}>
                   <tr>

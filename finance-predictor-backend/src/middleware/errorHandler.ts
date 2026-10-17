@@ -1,6 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
 
-// Last middleware in app.ts. Turns thrown errors into JSON { message }.
 export const errorHandler = (
   err: Error & { status?: number },
   _req: Request,

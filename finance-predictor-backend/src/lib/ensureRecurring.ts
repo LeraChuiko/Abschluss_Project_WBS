@@ -22,13 +22,7 @@ const shiftMonth = (month: string, add: number): string => {
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
 };
 
-const horizonMonth = (): string => {
-  const year = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Europe/Berlin',
-    year: 'numeric',
-  }).format(new Date());
-  return `${Number(year) + 10}-12`;
-};
+const horizonMonth = (): string => '2091-12';
 
 const expectedMonths = (keys: string[], first: string, until: string): Set<string> => {
   const unique = [...new Set(keys)].sort();
@@ -127,18 +121,22 @@ const runEnsureRecurringForRange = async (from: string, to: string): Promise<voi
     const sample = items[0];
     const keys = items.map((item) => monthUtc(item.date));
     const first = keys[0];
-    const last = items[items.length - 1];
-    if (!sample || !first || !last || until < first) {
+    const latest = items[items.length - 1];
+    const last = [...items].reverse().find((item) => item.amount > 0);
+    if (!sample || !first || !last || !latest || until < first || latest.amount <= 0) {
       continue;
     }
 
+    const uniqueMonths = [...new Set(keys)];
     const incomeForecast =
-      sample.type === 'income' && sample.incomeGroup && forecastIncome.has(sample.incomeGroup);
+      sample.type === 'income' &&
+      sample.incomeGroup &&
+      forecastIncome.has(sample.incomeGroup) &&
+      uniqueMonths.length > 1;
     const PflichtForecast = sample.type === 'expense' && sample.expenseBlock === 'fixed';
-    if (!incomeForecast && !PflichtForecast) {
-      continue;
-    }
-    if (last.amount <= 0) {
+    const repeatVariable =
+      sample.type === 'expense' && sample.expenseBlock === 'variable' && uniqueMonths.length > 1;
+    if (!incomeForecast && !PflichtForecast && !repeatVariable) {
       continue;
     }
 
@@ -161,6 +159,56 @@ const runEnsureRecurringForRange = async (from: string, to: string): Promise<voi
         seriesId: last.seriesId,
         importantDate: false,
       });
+    }
+  }
+
+  const occupied = new Set<string>();
+  for (const doc of docs) {
+    if (doc.type === 'expense' && doc.expenseBlock === 'fixed') {
+      occupied.add(`${doc.title}|${monthUtc(doc.date)}`);
+    }
+  }
+  for (const row of inserts) {
+    if (row.expenseBlock === 'fixed' && row.date instanceof Date) {
+      occupied.add(`${String(row.title)}|${monthUtc(row.date)}`);
+    }
+  }
+
+  const fixedByTitle = new Map<string, RecurringDoc[]>();
+  for (const doc of docs) {
+    if (doc.type !== 'expense' || doc.expenseBlock !== 'fixed') {
+      continue;
+    }
+    const list = fixedByTitle.get(doc.title) ?? [];
+    list.push(doc);
+    fixedByTitle.set(doc.title, list);
+  }
+  for (const [title, items] of fixedByTitle) {
+    const latest = items[items.length - 1];
+    const last = [...items].reverse().find((item) => item.amount > 0);
+    const keys = items.filter((item) => item.amount > 0).map((item) => monthUtc(item.date));
+    const first = keys[0];
+    if (!first || !last || !latest || latest.amount <= 0) {
+      continue;
+    }
+    const expected = expectedMonths(keys, first, until);
+    const dayRaw = last.date.getUTCDate();
+    const day = dayRaw > 28 ? '01' : String(dayRaw).padStart(2, '0');
+    const seriesId = last.seriesId || crypto.randomUUID();
+    for (const month of expected) {
+      if (month < cloneFrom || month > until || occupied.has(`${title}|${month}`)) {
+        continue;
+      }
+      inserts.push({
+        type: 'expense',
+        title,
+        amount: last.amount,
+        date: new Date(`${month}-${day}T00:00:00.000Z`),
+        expenseBlock: 'fixed',
+        seriesId,
+        importantDate: false,
+      });
+      occupied.add(`${title}|${month}`);
     }
   }
 

@@ -1,7 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { ZodError, type ZodType } from 'zod';
 
-// Checks req.body / params / query against a Zod schema before the controller runs.
 export const validate =
   (schema: ZodType) =>
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {

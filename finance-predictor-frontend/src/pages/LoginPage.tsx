@@ -30,7 +30,7 @@ export function LoginPage() {
             const job =
               mode === 'login'
                 ? login(email, password, remember)
-                : register(email, password, name.trim() || 'Valeriia', remember);
+                : register(email, password, name.trim() || 'Nutzer', remember);
             job.catch((err: Error) => setError(err.message));
           }}
         >

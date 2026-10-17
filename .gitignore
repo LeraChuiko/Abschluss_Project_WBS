@@ -6,3 +6,4 @@ dist/
 atlas-credentials.env
 .DS_Store
 *.log
+.cursor/

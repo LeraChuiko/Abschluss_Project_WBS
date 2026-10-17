@@ -58,7 +58,10 @@ export function IncomesPage() {
   return (
     <section className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Einnahmen</h1>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h1 className="text-3xl font-bold">Einnahmen</h1>
+          <PeriodFilter year={year} onYear={setYear} />
+        </div>
         <ul className="mt-3 flex flex-wrap gap-3 text-xs text-stone-600">
           {groups.map((g) => (
             <li key={g.key} className="flex items-center gap-1.5">
@@ -71,13 +74,7 @@ export function IncomesPage() {
       {error && <p className="text-red-700">{error}</p>}
 
       <article className="rounded-2xl bg-white p-4 shadow-sm">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-sm font-semibold text-stone-500">Gewählter Zeitraum nach Kategorie</p>
-            <p className="mt-1 text-2xl font-bold tabular-nums">{euro(total)}</p>
-          </div>
-          <PeriodFilter year={year} onYear={setYear} />
-        </div>
+        <p className="text-2xl font-bold tabular-nums">{euro(total)}</p>
         <ul className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
           {byGroup.map((g) => (
             <li key={g.key} className={`rounded-xl px-3 py-2 ${g.wrap}`}>

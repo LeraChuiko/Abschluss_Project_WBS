@@ -4,7 +4,7 @@ import { api } from '../api.ts';
 import { useFrei } from '../FreiContext.tsx';
 import { AmountEdit } from '../components/AmountEdit.tsx';
 import { PeriodFilter, useCalendarPeriod } from '../components/PeriodFilter.tsx';
-import { euro, monthName, isEditableMonth } from '../lib/format.ts';
+import { euro, monthName, isEditableMonth, currentMonthKey } from '../lib/format.ts';
 import type { Dashboard, ExpenseBlock, Transaction } from '../types.ts';
 
 const blocks: { key: ExpenseBlock; label: string; wrap: string }[] = [
@@ -36,15 +36,47 @@ export function DashboardPage() {
       api.transactionsYear(year) as Promise<Transaction[]>,
     ])
       .then(([dash, list]) => {
+        const forecast = year > currentMonthKey().slice(0, 4);
         setTables(
           dash.months
             .filter((dashboard) => dashboard.month >= start && dashboard.month <= end)
-            .map((dashboard) => ({
-              month: dashboard.month,
-              dashboard,
-              incomes: list.filter((t) => t.type === 'income' && t.date.slice(0, 7) === dashboard.month),
-              expenses: list.filter((t) => t.type === 'expense' && t.date.slice(0, 7) === dashboard.month),
-            })),
+            .map((dashboard) => {
+              const incomes = list.filter((t) => {
+                if (t.type !== 'income' || t.date.slice(0, 7) !== dashboard.month) {
+                  return false;
+                }
+                if (!forecast) {
+                  return true;
+                }
+                return t.incomeGroup === 'salary' || t.incomeGroup === 'business' || t.incomeGroup === 'investment';
+              });
+              const expenses = list.filter((t) => {
+                if (t.type !== 'expense' || t.date.slice(0, 7) !== dashboard.month) {
+                  return false;
+                }
+                if (!forecast) {
+                  return true;
+                }
+                return (
+                  t.expenseBlock === 'fixed' ||
+                  t.expenseBlock === 'periodic' ||
+                  (t.expenseBlock === 'variable' && Boolean(t.seriesId))
+                );
+              });
+              const incomeTotal = incomes.reduce((sum, t) => sum + t.amount, 0);
+              const expenseTotal = expenses.reduce((sum, t) => sum + t.amount, 0);
+              return {
+                month: dashboard.month,
+                dashboard: {
+                  ...dashboard,
+                  incomeTotal,
+                  expenseTotal,
+                  balance: incomeTotal - expenseTotal,
+                },
+                incomes,
+                expenses,
+              };
+            }),
         );
       })
       .catch((err: Error) => setError(err.message));
@@ -64,29 +96,28 @@ export function DashboardPage() {
 
   return (
     <section className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
+      <div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-3xl font-bold">Budget</h1>
-          <ul className="mt-3 flex flex-wrap gap-3 text-xs text-stone-600">
-            <li className="flex items-center gap-1.5">
-              <span className="h-3 w-3 rounded-sm bg-sky-200" /> Pflicht / Fix
-            </li>
-            <li className="flex items-center gap-1.5">
-              <span className="h-3 w-3 rounded-sm bg-fuchsia-200" /> Raten
-            </li>
-            <li className="flex items-center gap-1.5">
-              <span className="h-3 w-3 rounded-sm bg-emerald-200" /> Variabel
-            </li>
-          </ul>
+          <PeriodFilter year={year} onYear={setYear} />
         </div>
-        <PeriodFilter year={year} onYear={setYear} />
+        <ul className="mt-3 flex flex-wrap gap-3 text-xs text-stone-600">
+          <li className="flex items-center gap-1.5">
+            <span className="h-3 w-3 rounded-sm bg-sky-200" /> Pflicht / Fix
+          </li>
+          <li className="flex items-center gap-1.5">
+            <span className="h-3 w-3 rounded-sm bg-fuchsia-200" /> Raten
+          </li>
+          <li className="flex items-center gap-1.5">
+            <span className="h-3 w-3 rounded-sm bg-emerald-200" /> Variabel
+          </li>
+        </ul>
       </div>
 
       {error && <p className="text-red-700">{error}</p>}
 
       <article className="rounded-2xl bg-white px-4 py-3 shadow-sm">
-        <p className="text-xs font-semibold tracking-wide text-stone-500 uppercase">Gewählter Zeitraum</p>
-        <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div>
             <p className="text-xs text-stone-500">Einnahmen</p>
             <p className="text-lg font-semibold tabular-nums">{euro(periodIncome)}</p>
@@ -192,26 +223,31 @@ function Line({
 
   return (
     <div className="group/line relative flex items-start gap-2 border-b border-stone-200/70 py-1.5 last:border-0">
-      <div className="min-w-0 flex-1">
-        <AmountEdit
-          value={tx.amount}
-          name={tx.title}
-          canEdit={true}
-          onSave={(amount, title) => {
-            onError('');
-            const body = locked ? { amount: 0 } : { amount, ...(title ? { title } : {}) };
-            if (locked && amount !== 0) {
-              onError('Vergangene Monate: nur 0 zum Löschen');
-              return;
-            }
-            api
-              .updateTransaction(tx._id, body)
-              .then(() => reload())
-              .catch((err: Error) => onError(err.message));
-          }}
-        />
-        {date && <p className="text-xs text-stone-500">{formatDay(date)}</p>}
-      </div>
+      {locked ? (
+        <>
+          <p className="w-28 shrink-0 tabular-nums">{euro(tx.amount)}</p>
+          <div className="min-w-0">
+            <p className="leading-tight font-medium break-words">{tx.title}</p>
+            {date && <p className="text-xs text-stone-500">{formatDay(date)}</p>}
+          </div>
+        </>
+      ) : (
+        <div className="min-w-0 flex-1">
+          <AmountEdit
+            value={tx.amount}
+            name={tx.title}
+            canEdit={true}
+            onSave={(amount, title) => {
+              onError('');
+              api
+                .updateTransaction(tx._id, { amount, ...(title ? { title } : {}) })
+                .then(() => reload())
+                .catch((err: Error) => onError(err.message));
+            }}
+          />
+          {date && <p className="text-xs text-stone-500">{formatDay(date)}</p>}
+        </div>
+      )}
     </div>
   );
 }
