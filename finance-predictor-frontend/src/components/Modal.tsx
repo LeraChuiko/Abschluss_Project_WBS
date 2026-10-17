@@ -16,7 +16,7 @@ export function Modal({
           <h2 className="text-lg font-semibold">{title}</h2>
           <button
             type="button"
-            className="flex h-8 w-8 items-center justify-center rounded-full text-xl leading-none text-stone-500 hover:bg-stone-100"
+            className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-xl leading-none text-stone-500 hover:bg-stone-100 active:bg-stone-200"
             onClick={onClose}
             aria-label="Schließen"
           >

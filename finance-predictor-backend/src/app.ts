@@ -6,9 +6,7 @@ import { connectDB } from './config/db.ts';
 
 const app = express();
 
-// Allow the React app (another port) to call this API from the browser.
 app.use(cors());
-// Turn JSON text from the client into req.body.
 app.use(express.json());
 app.use('/api', routes);
 app.use(errorHandler);

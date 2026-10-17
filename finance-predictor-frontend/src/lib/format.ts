@@ -129,6 +129,20 @@ export function isEditableMonth(monthOrIso: string): boolean {
   return monthOrIso.slice(0, 7) >= currentMonthKey();
 }
 
+export function goalImageFallback(title: string): string {
+  const key = title.toLowerCase();
+  if (/(auto|wagen|car)/.test(key)) {
+    return '/goals/auto.jpg';
+  }
+  if (/(urlaub|reise|griechen)/.test(key)) {
+    return '/goals/urlaub.jpg';
+  }
+  if (/(macbook|laptop)/.test(key)) {
+    return '/goals/macbook.jpg';
+  }
+  return '';
+}
+
 export function toImageSrc(url: string): string {
   const found = url.match(/https?:\/\/[^\s]+/i)?.[0] ?? url.trim();
   if (found.includes('images.unsplash.com')) {
@@ -147,4 +161,42 @@ export const fieldClass =
   'rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 outline-none focus:border-violet-600';
 
 export const btnClass =
-  'rounded-lg bg-violet-700 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-800';
+  'cursor-pointer rounded-lg bg-violet-700 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-800 active:bg-violet-950';
+
+type RankItem = {
+  _id: string;
+  type: string;
+  title: string;
+  incomeGroup?: string;
+  expenseBlock?: string;
+};
+
+function rankKey(item: RankItem): string {
+  return item.type === 'income'
+    ? `i|${item.incomeGroup ?? ''}|${item.title}`
+    : `e|${item.expenseBlock ?? ''}|${item.title}`;
+}
+
+export function firstSeenRank(list: RankItem[]): Map<string, string> {
+  const rank = new Map<string, string>();
+  for (const item of list) {
+    const key = rankKey(item);
+    const prev = rank.get(key);
+    if (!prev || item._id < prev) {
+      rank.set(key, item._id);
+    }
+  }
+  return rank;
+}
+
+export function compareFirstSeen(rank: Map<string, string>, a: RankItem, b: RankItem): number {
+  const left = rank.get(rankKey(a)) ?? a._id;
+  const right = rank.get(rankKey(b)) ?? b._id;
+  if (left < right) {
+    return -1;
+  }
+  if (left > right) {
+    return 1;
+  }
+  return 0;
+}

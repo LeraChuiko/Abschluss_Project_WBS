@@ -17,8 +17,8 @@ export const createTransaction = async (
     const seriesId =
       typeof req.body.seriesId === 'string' && req.body.seriesId
         ? req.body.seriesId
-        : crypto.randomUUID();
-    const doc = await Transaction.create({ ...req.body, date, seriesId });
+        : undefined;
+    const doc = await Transaction.create({ ...req.body, date, ...(seriesId ? { seriesId } : {}) });
     res.status(201).json(doc);
   } catch (error) {
     next(error);
@@ -139,7 +139,8 @@ export const updateTransaction = async (
         const paidOthers = related
           .filter((item) => String(item._id) !== String(doc._id))
           .reduce((sum, item) => sum + item.amount, 0);
-        const rest = Math.max(0, Number((goal.targetAmount - paidOthers).toFixed(2)));
+        const credited = Number((goal.creditedAmount ?? 0).toFixed(2));
+        const rest = Math.max(0, Number((goal.targetAmount - paidOthers - credited).toFixed(2)));
         if (req.body.amount > rest) {
           res.status(400).json({
             message: `Die Summe ist größer als der Rest. Rest: ${rest.toLocaleString('de-DE', {
@@ -166,15 +167,49 @@ export const updateTransaction = async (
     }
     await doc.save();
 
-    if (typeof req.body.amount === 'number' && doc.type === 'income' && doc.seriesId) {
-      const from = new Date(`${docMonth}-01T00:00:00.000Z`);
+    const from = new Date(`${docMonth}-01T00:00:00.000Z`);
+    const zeroing = typeof req.body.amount === 'number' && req.body.amount === 0;
+
+    if (doc.seriesId) {
+      const seriesPatch: Record<string, unknown> = {};
+      if (typeof req.body.amount === 'number') {
+        seriesPatch.amount = req.body.amount;
+      }
+      if (typeof req.body.title === 'string') {
+        seriesPatch.title = req.body.title;
+      }
+      if (Object.keys(seriesPatch).length > 0) {
+        if (doc.type === 'income') {
+          await Transaction.updateMany(
+            {
+              type: 'income',
+              seriesId: doc.seriesId,
+              date: { $gte: from },
+            },
+            seriesPatch,
+          );
+        } else if (doc.type === 'expense' && !doc.debtId && !doc.savingsGoalId) {
+          await Transaction.updateMany(
+            {
+              type: 'expense',
+              seriesId: doc.seriesId,
+              date: { $gte: from },
+            },
+            seriesPatch,
+          );
+        }
+      }
+    }
+
+    if (zeroing && doc.type === 'income') {
       await Transaction.updateMany(
         {
           type: 'income',
-          seriesId: doc.seriesId,
+          title: doc.title,
+          incomeGroup: doc.incomeGroup,
           date: { $gte: from },
         },
-        { amount: req.body.amount },
+        { amount: 0 },
       );
     }
 
@@ -184,26 +219,17 @@ export const updateTransaction = async (
       !doc.debtId &&
       !doc.savingsGoalId
     ) {
-      const from = new Date(`${docMonth}-01T00:00:00.000Z`);
       const linked = doc.seriesId
         ? await Transaction.countDocuments({ seriesId: doc.seriesId })
         : 0;
-      if (linked > 1 && doc.seriesId) {
+      if (doc.expenseBlock === 'fixed' || linked <= 1 || zeroing) {
         await Transaction.updateMany(
           {
             type: 'expense',
-            seriesId: doc.seriesId,
-            date: { $gte: from },
-          },
-          { amount: req.body.amount },
-        );
-      } else if (doc.expenseBlock === 'fixed') {
-        await Transaction.updateMany(
-          {
-            type: 'expense',
-            expenseBlock: 'fixed',
+            expenseBlock: doc.expenseBlock,
             title: doc.title,
             date: { $gte: from },
+            debtId: { $exists: false },
             savingsGoalId: { $exists: false },
           },
           { amount: req.body.amount },

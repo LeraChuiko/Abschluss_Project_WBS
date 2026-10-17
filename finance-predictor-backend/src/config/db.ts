@@ -1,6 +1,5 @@
 import mongoose from 'mongoose';
 
-// Connect to MongoDB Atlas before the HTTP server starts listening.
 export const connectDB = async (): Promise<void> => {
   const mongoUri = process.env.MONGO_URI;
 

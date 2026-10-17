@@ -87,7 +87,7 @@ function HintIcon({
       <button
         type="button"
         aria-label={label}
-        className={`inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-stone-300 bg-white text-stone-600 shadow-sm transition ${hover}`}
+        className={`inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-stone-300 bg-white text-stone-600 shadow-sm transition active:brightness-90 ${hover}`}
         onClick={onClick}
       >
         {children}
@@ -105,6 +105,9 @@ function cardClass(row: Row, now: string): string {
   }
   if (row.month > now) {
     return 'bg-amber-50 text-amber-950';
+  }
+  if (row.month < now) {
+    return 'bg-rose-50 text-rose-950';
   }
   return 'bg-emerald-50 text-emerald-950';
 }
@@ -226,22 +229,25 @@ export function ForecastPage() {
 
   return (
     <section className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
+      <div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-3xl font-bold">Hinweise</h1>
-          <ul className="mt-3 flex flex-wrap gap-3 text-xs text-stone-600">
-            <li className="flex items-center gap-1.5">
-              <span className="h-3 w-3 rounded-sm bg-emerald-200" /> Dieser Monat
-            </li>
-            <li className="flex items-center gap-1.5">
-              <span className="h-3 w-3 rounded-sm bg-amber-200" /> Geplant
-            </li>
-            <li className="flex items-center gap-1.5">
-              <span className="h-3 w-3 rounded-sm bg-stone-300" /> Erledigt
-            </li>
-          </ul>
+          <PeriodFilter year={year} onYear={setYear} />
         </div>
-        <PeriodFilter year={year} onYear={setYear} />
+        <ul className="mt-3 flex flex-wrap gap-3 text-xs text-stone-600">
+          <li className="flex items-center gap-1.5">
+            <span className="h-3 w-3 rounded-sm bg-emerald-200" /> Aktuell
+          </li>
+          <li className="flex items-center gap-1.5">
+            <span className="h-3 w-3 rounded-sm bg-rose-200" /> Überfällig
+          </li>
+          <li className="flex items-center gap-1.5">
+            <span className="h-3 w-3 rounded-sm bg-amber-200" /> Geplant
+          </li>
+          <li className="flex items-center gap-1.5">
+            <span className="h-3 w-3 rounded-sm bg-stone-300" /> Erledigt
+          </li>
+        </ul>
       </div>
       {error && <p className="text-red-700">{error}</p>}
 

@@ -1,13 +1,30 @@
 # Familien Finance Predictor
 
-Abschlussprojekt: Budget, Einnahmen, Raten, Sparziele und Hinweise.
+Abschlussprojekt: Familienbudget in EUR (Zeitzone Berlin).  
+Budget, Einnahmen, Raten, Sparziele und Hinweise.
 
-- `finance-predictor-backend` — Express + TypeScript + MongoDB Atlas  
-- `finance-predictor-frontend` — React + Vite  
+- `finance-predictor-backend` — Express, TypeScript, MongoDB Atlas, JWT  
+- `finance-predictor-frontend` — React, Vite, Tailwind  
 
-API-Liste: [API_CONTRACT.md](API_CONTRACT.md)
+API: [API_CONTRACT.md](API_CONTRACT.md)
 
-## Start
+## Live-Demo
+
+- App: [https://familien-finance.onrender.com](https://familien-finance.onrender.com)  
+- API-Check: [https://familien-finance-api.onrender.com/api/health](https://familien-finance-api.onrender.com/api/health)
+
+Kein Auth0. Login ist eigene Registrierung mit JWT. Es gibt **keine E-Mail-Bestätigung** — die Adresse muss nur wie eine E-Mail aussehen, ein echtes Postfach ist nicht nötig.
+
+Neue Konten sind leer. Wer die **gefüllte Demo** sehen soll, braucht ein gemeinsames Demo-Konto in der Live-Datenbank. Das gehört in diesen Abschnitt (eigene Adresse, nicht das private Gmail):
+
+```
+E-Mail: (Demo-Konto eintragen)
+Passwort: (Demo-Passwort eintragen)
+```
+
+Render Free kann nach Pause etwas länger starten.
+
+## Start lokal
 
 Zwei Terminals. Zuerst die API, dann die Website.
 
@@ -18,7 +35,7 @@ cd finance-predictor-backend
 npm install
 ```
 
-Datei `.env` im selben Ordner (nicht auf GitHub legen):
+Datei `.env` im selben Ordner (nicht auf GitHub):
 
 ```
 PORT=3000
@@ -42,7 +59,8 @@ npm run dev
 
 Browser: **http://localhost:5173**
 
-Beim ersten Mal: **Registrieren**, dann **Anmelden**. Die API erwartet `Authorization: Bearer …`. Mit **Angemeldet bleiben** gilt JWT **30 Tage**, ohne Häkchen **12 Stunden** (nur dieses Browser-Fenster).
+**Registrieren** oder **Anmelden**. Header: `Authorization: Bearer …`.  
+**Angemeldet bleiben**: JWT 30 Tage, sonst 12 Stunden.
 
 ## Deploy auf Render
 
@@ -58,6 +76,6 @@ Zwei Services. MongoDB Atlas: Network Access `0.0.0.0/0`.
 - Root Directory: `finance-predictor-frontend`  
 - Build: `npm install && npm run build`  
 - Publish directory: `dist`  
-- Environment: `VITE_API_URL=https://DEIN-API.onrender.com/api`  
+- Environment: `VITE_API_URL=https://familien-finance-api.onrender.com/api`  
 
-Redirects (SPA): `/*` → `/index.html`. Nach dem ersten Deploy Frontend neu bauen, sobald die API-URL feststeht.
+Redirects (SPA): `/*` → `/index.html`.
