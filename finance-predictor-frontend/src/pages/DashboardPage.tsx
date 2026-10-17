@@ -4,7 +4,7 @@ import { api } from '../api.ts';
 import { useFrei } from '../FreiContext.tsx';
 import { AmountEdit } from '../components/AmountEdit.tsx';
 import { PeriodFilter, useCalendarPeriod } from '../components/PeriodFilter.tsx';
-import { euro, monthName, isEditableMonth, currentMonthKey } from '../lib/format.ts';
+import { euro, monthName, isEditableMonth, currentMonthKey, firstSeenRank, compareFirstSeen } from '../lib/format.ts';
 import type { Dashboard, ExpenseBlock, Transaction } from '../types.ts';
 
 const blocks: { key: ExpenseBlock; label: string; wrap: string }[] = [
@@ -18,51 +18,118 @@ type MonthTable = {
   dashboard: Dashboard;
   incomes: Transaction[];
   expenses: Transaction[];
+  rank: Map<string, string>;
 };
 
 function formatDay(iso: string): string {
   return new Date(iso).toLocaleDateString('de-DE', { timeZone: 'UTC' });
 }
 
+function isForecastYear(year: string): boolean {
+  return year > currentMonthKey().slice(0, 4);
+}
+
+function keepIncome(t: Transaction, forecast: boolean): boolean {
+  if (t.type !== 'income' || t.amount === 0) {
+    return false;
+  }
+  if (!forecast) {
+    return true;
+  }
+  return t.incomeGroup === 'salary' || t.incomeGroup === 'business' || t.incomeGroup === 'investment';
+}
+
+function keepExpense(t: Transaction, forecast: boolean, seen: Set<string>): boolean {
+  if (t.type !== 'expense' || t.amount === 0) {
+    return false;
+  }
+  if (
+    forecast &&
+    !(
+      t.expenseBlock === 'fixed' ||
+      t.expenseBlock === 'periodic' ||
+      (t.expenseBlock === 'variable' && Boolean(t.seriesId))
+    )
+  ) {
+    return false;
+  }
+  const stamp = `${t.date.slice(0, 7)}|${t.expenseBlock}|${t.title}`;
+  if (seen.has(stamp)) {
+    return false;
+  }
+  seen.add(stamp);
+  return true;
+}
+
+function yearSum(list: Transaction[], year: string): { income: number; expense: number } {
+  const forecast = isForecastYear(year);
+  const seen = new Set<string>();
+  let income = 0;
+  let expense = 0;
+  for (const t of list) {
+    if (t.date.slice(0, 4) !== year) {
+      continue;
+    }
+    if (keepIncome(t, forecast)) {
+      income += t.amount;
+    } else if (keepExpense(t, forecast, seen)) {
+      expense += t.amount;
+    }
+  }
+  return { income, expense };
+}
+
 export function DashboardPage() {
   const { year, setYear, start, end } = useCalendarPeriod();
   const [tables, setTables] = useState<MonthTable[]>([]);
+  const [periodIncome, setPeriodIncome] = useState(0);
+  const [periodExpense, setPeriodExpense] = useState(0);
   const [error, setError] = useState('');
 
   const load = () => {
     setError('');
-    Promise.all([
-      api.dashboardYear(year) as Promise<{ year: string; months: Dashboard[] }>,
-      api.transactionsYear(year) as Promise<Transaction[]>,
-    ])
-      .then(([dash, list]) => {
-        const forecast = year > currentMonthKey().slice(0, 4);
+    const thisYear = currentMonthKey().slice(0, 4);
+    const fromYear = Number(year < thisYear ? year : thisYear);
+    const toYear = Number(year);
+    const years = Array.from({ length: toYear - fromYear + 1 }, (_, i) => String(fromYear + i));
+
+    Promise.all(
+      years.map((item) =>
+        Promise.all([
+          api.dashboardYear(item) as Promise<{ year: string; months: Dashboard[] }>,
+          api.transactionsYear(item) as Promise<Transaction[]>,
+        ]).then(([dash, list]) => ({ year: item, dash, list })),
+      ),
+    )
+      .then((packs) => {
+        let income = 0;
+        let expense = 0;
+        for (const pack of packs) {
+          const sum = yearSum(pack.list, pack.year);
+          income += sum.income;
+          expense += sum.expense;
+        }
+        setPeriodIncome(income);
+        setPeriodExpense(expense);
+
+        const selected = packs.find((pack) => pack.year === year);
+        if (!selected) {
+          setTables([]);
+          return;
+        }
+        const forecast = isForecastYear(year);
+        const rank = firstSeenRank(packs.flatMap((pack) => pack.list));
         setTables(
-          dash.months
+          selected.dash.months
             .filter((dashboard) => dashboard.month >= start && dashboard.month <= end)
             .map((dashboard) => {
-              const incomes = list.filter((t) => {
-                if (t.type !== 'income' || t.date.slice(0, 7) !== dashboard.month) {
-                  return false;
-                }
-                if (!forecast) {
-                  return true;
-                }
-                return t.incomeGroup === 'salary' || t.incomeGroup === 'business' || t.incomeGroup === 'investment';
-              });
-              const expenses = list.filter((t) => {
-                if (t.type !== 'expense' || t.date.slice(0, 7) !== dashboard.month) {
-                  return false;
-                }
-                if (!forecast) {
-                  return true;
-                }
-                return (
-                  t.expenseBlock === 'fixed' ||
-                  t.expenseBlock === 'periodic' ||
-                  (t.expenseBlock === 'variable' && Boolean(t.seriesId))
-                );
-              });
+              const incomes = selected.list
+                .filter((t) => t.date.slice(0, 7) === dashboard.month && keepIncome(t, forecast))
+                .sort((a, b) => compareFirstSeen(rank, a, b));
+              const seen = new Set<string>();
+              const expenses = selected.list
+                .filter((t) => t.date.slice(0, 7) === dashboard.month && keepExpense(t, forecast, seen))
+                .sort((a, b) => compareFirstSeen(rank, a, b));
               const incomeTotal = incomes.reduce((sum, t) => sum + t.amount, 0);
               const expenseTotal = expenses.reduce((sum, t) => sum + t.amount, 0);
               return {
@@ -75,6 +142,7 @@ export function DashboardPage() {
                 },
                 incomes,
                 expenses,
+                rank,
               };
             }),
         );
@@ -89,8 +157,6 @@ export function DashboardPage() {
     return () => window.removeEventListener('finance-reload', onReload);
   }, [year, start, end]);
 
-  const periodIncome = tables.reduce((sum, table) => sum + table.dashboard.incomeTotal, 0);
-  const periodExpense = tables.reduce((sum, table) => sum + table.dashboard.expenseTotal, 0);
   const periodRest = periodIncome - periodExpense;
   const periodRestClass = periodRest < 0 ? 'text-red-700' : 'text-violet-800';
 
@@ -187,12 +253,19 @@ function MonthSheet({ table, onError }: { table: MonthTable; onError: (msg: stri
       </header>
 
       {blocks.map((b) => {
-        const rows = expenses.filter((t) => {
-          if (t.expenseBlock !== b.key || t.amount === 0) {
-            return false;
-          }
-          return true;
-        });
+        const rows = expenses
+          .filter((t) => t.expenseBlock === b.key && t.amount !== 0)
+          .sort((a, b) => {
+            const aDated = Boolean(a.importantDate);
+            const bDated = Boolean(b.importantDate);
+            if (aDated !== bDated) {
+              return aDated ? 1 : -1;
+            }
+            if (aDated) {
+              return a.date.localeCompare(b.date);
+            }
+            return compareFirstSeen(table.rank, a, b);
+          });
         if (rows.length === 0) {
           return null;
         }

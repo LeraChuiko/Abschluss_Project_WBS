@@ -222,7 +222,7 @@ export const updateTransaction = async (
       const linked = doc.seriesId
         ? await Transaction.countDocuments({ seriesId: doc.seriesId })
         : 0;
-      if (linked <= 1 || zeroing) {
+      if (doc.expenseBlock === 'fixed' || linked <= 1 || zeroing) {
         await Transaction.updateMany(
           {
             type: 'expense',
