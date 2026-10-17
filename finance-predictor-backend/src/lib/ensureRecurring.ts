@@ -302,8 +302,9 @@ const queuePflicht = (
   }
 };
 
-const dedupeRange = async (from: string, to: string): Promise<void> => {
+const dedupeRange = async (from: string, to: string, userId: string): Promise<void> => {
   const rows = (await Transaction.find({
+    userId,
     date: {
       $gte: new Date(`${from}-01T00:00:00.000Z`),
       $lt: new Date(`${shiftMonth(to, 1)}-01T00:00:00.000Z`),
@@ -324,13 +325,17 @@ const dedupeRange = async (from: string, to: string): Promise<void> => {
     }
   }
   if (drop.length > 0) {
-    await Transaction.deleteMany({ _id: { $in: drop } });
+    await Transaction.deleteMany({ _id: { $in: drop }, userId });
   }
 };
 
 let queue: Promise<void> = Promise.resolve();
 
-const runEnsureRecurringForRange = async (from: string, to: string): Promise<void> => {
+const runEnsureRecurringForRange = async (
+  from: string,
+  to: string,
+  userId: string,
+): Promise<void> => {
   const cap = horizonMonth();
   const now = berlinMonthNow();
   const until = to > cap ? cap : to;
@@ -341,14 +346,16 @@ const runEnsureRecurringForRange = async (from: string, to: string): Promise<voi
 
   const nextYear = String(Number(now.slice(0, 4)) + 1);
   await Transaction.deleteMany({
+    userId,
     type: 'income',
     incomeGroup: { $in: ['freelance', 'gift'] },
     date: { $gte: new Date(`${nextYear}-01-01T00:00:00.000Z`) },
   });
 
-  await dedupeRange(cloneFrom, until);
+  await dedupeRange(cloneFrom, until, userId);
 
   const docs = (await Transaction.find({
+    userId,
     debtId: { $exists: false },
     savingsGoalId: { $exists: false },
   })
@@ -408,18 +415,22 @@ const runEnsureRecurringForRange = async (from: string, to: string): Promise<voi
   }
 
   if (dropZero.length > 0) {
-    await Transaction.deleteMany({ _id: { $in: dropZero } });
+    await Transaction.deleteMany({ _id: { $in: dropZero }, userId });
   }
   for (const patch of patches) {
-    await Transaction.updateOne({ _id: patch.id }, { amount: patch.amount });
+    await Transaction.updateOne({ _id: patch.id, userId }, { amount: patch.amount });
   }
   if (inserts.length > 0) {
-    await Transaction.insertMany(inserts);
+    await Transaction.insertMany(inserts.map((row) => ({ ...row, userId })));
   }
 };
 
-export const ensureRecurringForRange = (from: string, to: string): Promise<void> => {
-  const job = queue.then(() => runEnsureRecurringForRange(from, to));
+export const ensureRecurringForRange = (
+  from: string,
+  to: string,
+  userId: string,
+): Promise<void> => {
+  const job = queue.then(() => runEnsureRecurringForRange(from, to, userId));
   queue = job.then(
     () => undefined,
     () => undefined,
@@ -427,5 +438,5 @@ export const ensureRecurringForRange = (from: string, to: string): Promise<void>
   return job;
 };
 
-export const ensureRecurringForMonth = (month: string): Promise<void> =>
-  ensureRecurringForRange(month, month);
+export const ensureRecurringForMonth = (month: string, userId: string): Promise<void> =>
+  ensureRecurringForRange(month, month, userId);

@@ -2,7 +2,8 @@
 
 Base URL: `http://localhost:3000/api`  
 Dates: `YYYY-MM-DD`. Month query: `YYYY-MM`.  
-Protected routes need header `Authorization: Bearer <token>`.
+Protected routes need header `Authorization: Bearer <token>`.  
+Budget data is per account: `Transaction`, `Debt`, `SavingsGoal` and `Hinweis` store `userId` from the token. Lists and dashboard return only the current user. Unknown or other users' ids respond `404`. Do not send `userId` in the request body.
 
 | Action | Method + URL | Auth | Body / query | Success |
 | --- | --- | --- | --- | --- |

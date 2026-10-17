@@ -3,6 +3,7 @@ export type ExpenseBlock = 'fixed' | 'periodic' | 'variable';
 
 export type Transaction = {
   _id: string;
+  userId?: string;
   type: 'income' | 'expense';
   title: string;
   amount: number;
@@ -26,6 +27,7 @@ export type Dashboard = {
 
 export type Debt = {
   _id: string;
+  userId?: string;
   title: string;
   totalAmount: number;
   monthlyPayment: number;
@@ -36,6 +38,7 @@ export type Debt = {
 
 export type SavingsGoal = {
   _id: string;
+  userId?: string;
   title: string;
   targetAmount: number;
   currentAmount: number;
@@ -49,6 +52,7 @@ export type SavingsGoal = {
 
 export type Hinweis = {
   _id: string;
+  userId?: string;
   title: string;
   note?: string;
   month: string;

@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { Debt } from '../models/Debt.ts';
 import { ensureRecurringForRange } from '../lib/ensureRecurring.ts';
+import { byOwner, ownerId, owned } from '../lib/owner.ts';
 import { SavingsGoal } from '../models/SavingsGoal.ts';
 import { Transaction } from '../models/Transaction.ts';
 
@@ -18,7 +19,12 @@ export const createTransaction = async (
       typeof req.body.seriesId === 'string' && req.body.seriesId
         ? req.body.seriesId
         : undefined;
-    const doc = await Transaction.create({ ...req.body, date, ...(seriesId ? { seriesId } : {}) });
+    const doc = await Transaction.create({
+      ...req.body,
+      date,
+      ...byOwner(ownerId(req)),
+      ...(seriesId ? { seriesId } : {}),
+    });
     res.status(201).json(doc);
   } catch (error) {
     next(error);
@@ -31,18 +37,19 @@ export const listTransactions = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
+    const userId = ownerId(req);
     const month = req.query.month;
     const year = req.query.year;
-    const filter: Record<string, unknown> = {};
+    const filter: Record<string, unknown> = { ...byOwner(userId) };
 
     if (typeof year === 'string' && /^\d{4}$/.test(year)) {
-      await ensureRecurringForRange(`${year}-01`, `${year}-12`);
+      await ensureRecurringForRange(`${year}-01`, `${year}-12`, userId);
       filter.date = {
         $gte: new Date(`${year}-01-01T00:00:00.000Z`),
         $lt: new Date(`${Number(year) + 1}-01-01T00:00:00.000Z`),
       };
     } else if (typeof month === 'string' && /^\d{4}-\d{2}$/.test(month)) {
-      await ensureRecurringForRange(month, month);
+      await ensureRecurringForRange(month, month, userId);
       const start = new Date(`${month}-01T00:00:00.000Z`);
       const end = new Date(start);
       end.setUTCMonth(end.getUTCMonth() + 1);
@@ -58,12 +65,18 @@ export const listTransactions = async (
 
 const monthUtc = (date: Date): string => date.toISOString().slice(0, 7);
 
-const spreadDebtLeftover = async (debtId: unknown, fromMonth: string): Promise<void> => {
-  const debt = await Debt.findById(debtId);
+const spreadDebtLeftover = async (
+  debtId: unknown,
+  fromMonth: string,
+  userId: string,
+): Promise<void> => {
+  const debt = await Debt.findOne({ _id: debtId, ...byOwner(userId) });
   if (!debt) {
     return;
   }
-  const related = await Transaction.find({ debtId } as never).sort({ date: 1 }).lean();
+  const related = await Transaction.find({ debtId, ...byOwner(userId) } as never)
+    .sort({ date: 1 })
+    .lean();
   const paidSoFar = related
     .filter((item) => monthUtc(item.date) <= fromMonth)
     .reduce((sum, item) => sum + item.amount, 0);
@@ -79,7 +92,7 @@ const spreadDebtLeftover = async (debtId: unknown, fromMonth: string): Promise<v
     const next = leftover <= 0 ? 0 : isLast ? leftover : Math.min(rate, leftover);
     const amount = Number(next.toFixed(2));
     leftover = Math.max(0, Number((leftover - amount).toFixed(2)));
-    await Transaction.updateOne({ _id: row._id }, { $set: { amount } });
+    await Transaction.updateOne({ _id: row._id, ...byOwner(userId) }, { $set: { amount } });
   }
 };
 
@@ -100,7 +113,8 @@ export const updateTransaction = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
-    const doc = await Transaction.findById(req.params.id);
+    const userId = ownerId(req);
+    const doc = await Transaction.findOne(owned(req, { _id: req.params.id }));
     if (!doc) {
       res.status(404).json({ message: 'Transaction not found' });
       return;
@@ -113,9 +127,9 @@ export const updateTransaction = async (
     }
 
     if (typeof req.body.amount === 'number' && doc.debtId) {
-      const debt = await Debt.findById(doc.debtId);
+      const debt = await Debt.findOne({ _id: doc.debtId, ...byOwner(userId) });
       if (debt) {
-        const related = await Transaction.find({ debtId: doc.debtId });
+        const related = await Transaction.find({ debtId: doc.debtId, ...byOwner(userId) });
         const paidBefore = related
           .filter((item) => monthUtc(item.date) < docMonth)
           .reduce((sum, item) => sum + item.amount, 0);
@@ -133,9 +147,12 @@ export const updateTransaction = async (
     }
 
     if (typeof req.body.amount === 'number' && doc.savingsGoalId) {
-      const goal = await SavingsGoal.findById(doc.savingsGoalId);
+      const goal = await SavingsGoal.findOne({ _id: doc.savingsGoalId, ...byOwner(userId) });
       if (goal) {
-        const related = await Transaction.find({ savingsGoalId: doc.savingsGoalId });
+        const related = await Transaction.find({
+          savingsGoalId: doc.savingsGoalId,
+          ...byOwner(userId),
+        });
         const paidOthers = related
           .filter((item) => String(item._id) !== String(doc._id))
           .reduce((sum, item) => sum + item.amount, 0);
@@ -182,6 +199,7 @@ export const updateTransaction = async (
         if (doc.type === 'income') {
           await Transaction.updateMany(
             {
+              ...byOwner(userId),
               type: 'income',
               seriesId: doc.seriesId,
               date: { $gte: from },
@@ -191,6 +209,7 @@ export const updateTransaction = async (
         } else if (doc.type === 'expense' && !doc.debtId && !doc.savingsGoalId) {
           await Transaction.updateMany(
             {
+              ...byOwner(userId),
               type: 'expense',
               seriesId: doc.seriesId,
               date: { $gte: from },
@@ -204,6 +223,7 @@ export const updateTransaction = async (
     if (zeroing && doc.type === 'income') {
       await Transaction.updateMany(
         {
+          ...byOwner(userId),
           type: 'income',
           title: doc.title,
           incomeGroup: doc.incomeGroup,
@@ -220,11 +240,12 @@ export const updateTransaction = async (
       !doc.savingsGoalId
     ) {
       const linked = doc.seriesId
-        ? await Transaction.countDocuments({ seriesId: doc.seriesId })
+        ? await Transaction.countDocuments({ seriesId: doc.seriesId, ...byOwner(userId) })
         : 0;
       if (doc.expenseBlock === 'fixed' || linked <= 1 || zeroing) {
         await Transaction.updateMany(
           {
+            ...byOwner(userId),
             type: 'expense',
             expenseBlock: doc.expenseBlock,
             title: doc.title,
@@ -238,7 +259,7 @@ export const updateTransaction = async (
     }
 
     if (typeof req.body.amount === 'number' && doc.debtId) {
-      await spreadDebtLeftover(doc.debtId, docMonth);
+      await spreadDebtLeftover(doc.debtId, docMonth, userId);
     }
 
     res.status(200).json(doc);

@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { resolveImageUrl, unsplashPhotoId } from '../lib/imageUrl.ts';
+import { byOwner, ownerId, owned } from '../lib/owner.ts';
 import { SavingsGoal } from '../models/SavingsGoal.ts';
 import { Transaction } from '../models/Transaction.ts';
 
@@ -18,10 +19,11 @@ const berlinToday = (): string => {
 
 const berlinMonthNow = (): string => berlinToday().slice(0, 7);
 
-const paidOf = async (goalId: unknown): Promise<number> => {
+const paidOf = async (goalId: unknown, userId: string): Promise<number> => {
   const rows = await Transaction.find({
     savingsGoalId: goalId,
     type: 'expense',
+    ...byOwner(userId),
   } as never).lean();
   return Number(rows.reduce((sum, item) => sum + (item.amount ?? 0), 0).toFixed(2));
 };
@@ -29,8 +31,8 @@ const paidOf = async (goalId: unknown): Promise<number> => {
 const creditedOf = (doc: InstanceType<typeof SavingsGoal>): number =>
   Number((doc.creditedAmount ?? 0).toFixed(2));
 
-const withPaid = async (doc: InstanceType<typeof SavingsGoal>) => {
-  const currentAmount = Number(((await paidOf(doc._id)) + creditedOf(doc)).toFixed(2));
+const withPaid = async (doc: InstanceType<typeof SavingsGoal>, userId: string) => {
+  const currentAmount = Number(((await paidOf(doc._id, userId)) + creditedOf(doc)).toFixed(2));
   const done = currentAmount >= doc.targetAmount && doc.targetAmount > 0;
   let dirty = false;
   if (doc.imageUrl && unsplashPhotoId(doc.imageUrl) && !doc.imageUrl.includes('images.unsplash.com')) {
@@ -38,7 +40,9 @@ const withPaid = async (doc: InstanceType<typeof SavingsGoal>) => {
     dirty = true;
   }
   if (done && !doc.completedAt) {
-    const last = await Transaction.findOne({ savingsGoalId: doc._id }).sort({ date: -1 }).lean();
+    const last = await Transaction.findOne({ savingsGoalId: doc._id, ...byOwner(userId) })
+      .sort({ date: -1 })
+      .lean();
     doc.completedAt = last?.date ?? new Date();
     dirty = true;
   }
@@ -63,7 +67,9 @@ export const createSavingsGoal = async (
       res.status(400).json({ message: 'Bereits gezahlt darf nicht größer als die Zielsumme sein' });
       return;
     }
+    const userId = ownerId(req);
     const doc = await SavingsGoal.create({
+      ...byOwner(userId),
       title: req.body.title,
       targetAmount: req.body.targetAmount,
       imageUrl: await resolveImageUrl(req.body.imageUrl ?? ''),
@@ -71,20 +77,21 @@ export const createSavingsGoal = async (
       creditedAmount,
       noBudget: Boolean(req.body.noBudget),
     });
-    res.status(201).json(await withPaid(doc));
+    res.status(201).json(await withPaid(doc, userId));
   } catch (error) {
     next(error);
   }
 };
 
 export const listSavingsGoals = async (
-  _req: Request,
+  req: Request,
   res: Response,
   next: NextFunction,
 ): Promise<void> => {
   try {
-    const items = await SavingsGoal.find().sort({ createdAt: -1 });
-    const payload = await Promise.all(items.map((item) => withPaid(item)));
+    const userId = ownerId(req);
+    const items = await SavingsGoal.find(byOwner(userId)).sort({ createdAt: -1 });
+    const payload = await Promise.all(items.map((item) => withPaid(item, userId)));
     res.status(200).json(payload);
   } catch (error) {
     next(error);
@@ -97,7 +104,8 @@ export const updateSavingsGoal = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
-    const doc = await SavingsGoal.findById(req.params.id);
+    const userId = ownerId(req);
+    const doc = await SavingsGoal.findOne(owned(req, { _id: req.params.id }));
     if (!doc) {
       res.status(404).json({ message: 'Savings goal not found' });
       return;
@@ -122,10 +130,13 @@ export const updateSavingsGoal = async (
     await doc.save();
 
     if (typeof req.body.title === 'string') {
-      await Transaction.updateMany({ savingsGoalId: doc._id }, { title: doc.title });
+      await Transaction.updateMany(
+        { savingsGoalId: doc._id, ...byOwner(userId) },
+        { title: doc.title },
+      );
     }
 
-    res.status(200).json(await withPaid(doc));
+    res.status(200).json(await withPaid(doc, userId));
   } catch (error) {
     next(error);
   }
@@ -137,7 +148,8 @@ export const depositSavingsGoal = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
-    const doc = await SavingsGoal.findById(req.params.id);
+    const userId = ownerId(req);
+    const doc = await SavingsGoal.findOne(owned(req, { _id: req.params.id }));
     if (!doc) {
       res.status(404).json({ message: 'Savings goal not found' });
       return;
@@ -152,7 +164,7 @@ export const depositSavingsGoal = async (
     }
 
     const amount = Number(Number(req.body.amount).toFixed(2));
-    const paid = await paidOf(doc._id);
+    const paid = await paidOf(doc._id, userId);
     const credited = creditedOf(doc);
     const rest = Math.max(0, Number((doc.targetAmount - paid - credited).toFixed(2)));
     if (amount > rest) {
@@ -167,6 +179,7 @@ export const depositSavingsGoal = async (
 
     if (affectBudget) {
       await Transaction.create({
+        ...byOwner(userId),
         type: 'expense',
         title: doc.title,
         amount,
@@ -181,7 +194,7 @@ export const depositSavingsGoal = async (
       doc.currentAmount = Number((paid + doc.creditedAmount).toFixed(2));
     }
     await doc.save();
-    res.status(200).json(await withPaid(doc));
+    res.status(200).json(await withPaid(doc, userId));
   } catch (error) {
     next(error);
   }

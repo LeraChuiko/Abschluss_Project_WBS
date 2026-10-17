@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 
 export type TransactionDoc = {
+  userId?: mongoose.Types.ObjectId;
   type: 'income' | 'expense';
   title: string;
   amount: number;
@@ -15,6 +16,7 @@ export type TransactionDoc = {
 
 const transactionSchema = new mongoose.Schema<TransactionDoc>(
   {
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true },
     type: { type: String, enum: ['income', 'expense'], required: true },
     title: { type: String, required: true, trim: true },
     amount: { type: Number, required: true, min: 0 },

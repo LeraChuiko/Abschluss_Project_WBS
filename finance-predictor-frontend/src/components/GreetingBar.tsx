@@ -5,10 +5,24 @@ import { useAuth } from '../AuthContext.tsx';
 import { goalImageFallback, toImageSrc } from '../lib/format.ts';
 import type { SavingsGoal } from '../types.ts';
 
+const greetingName = (email: string, name: string): string => {
+  const fromEmail = email.split('@')[0]?.trim() ?? '';
+  const skip = new Set(['', 'test', 'тест', 'nutzer', 'demo']);
+  if (fromEmail && !skip.has(fromEmail.toLowerCase())) {
+    return fromEmail;
+  }
+  const trimmed = name.trim();
+  if (trimmed && !skip.has(trimmed.toLowerCase())) {
+    return trimmed;
+  }
+  return 'Familie';
+};
+
 export function GreetingBar() {
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const navigate = useNavigate();
   const [goal, setGoal] = useState<SavingsGoal | null>(null);
+  const hello = greetingName(user?.email ?? '', user?.name ?? '');
 
   const loadGoal = () => {
     api
@@ -62,7 +76,7 @@ export function GreetingBar() {
             </button>
           )}
           <p className="min-w-0 leading-snug text-stone-700">
-            Hallo, Familie Chuiko. Euer Ziel ist nah
+            Hallo, {hello}. Euer Ziel ist nah
             {goal ? (
               <>
                 : <span className="font-bold text-violet-700">{goal.title}</span>!

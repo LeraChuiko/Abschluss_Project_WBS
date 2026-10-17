@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 
 const hinweisSchema = new mongoose.Schema(
   {
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true },
     title: { type: String, required: true, trim: true },
     note: { type: String, trim: true, default: '' },
     month: { type: String, required: true, match: /^\d{4}-\d{2}$/ },

@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { ensureRecurringForRange } from '../lib/ensureRecurring.ts';
+import { byOwner, ownerId } from '../lib/owner.ts';
 import { Transaction } from '../models/Transaction.ts';
 
 const monthPattern = /^\d{4}-\d{2}$/;
@@ -59,16 +60,20 @@ export const getDashboard = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
+    const userId = ownerId(req);
     const year = req.query.year;
     const month = req.query.month;
 
     if (typeof year === 'string' && yearPattern.test(year)) {
       const from = `${year}-01`;
       const to = `${year}-12`;
-      await ensureRecurringForRange(from, to);
+      await ensureRecurringForRange(from, to, userId);
       const start = new Date(`${from}-01T00:00:00.000Z`);
       const end = new Date(`${Number(year) + 1}-01-01T00:00:00.000Z`);
-      const items = await Transaction.find({ date: { $gte: start, $lt: end } }).lean();
+      const items = await Transaction.find({
+        ...byOwner(userId),
+        date: { $gte: start, $lt: end },
+      }).lean();
       const byMonth = new Map<string, Totals>();
       for (let m = 1; m <= 12; m += 1) {
         const key = `${year}-${String(m).padStart(2, '0')}`;
@@ -92,12 +97,15 @@ export const getDashboard = async (
       return;
     }
 
-    await ensureRecurringForRange(month, month);
+    await ensureRecurringForRange(month, month, userId);
     const start = new Date(`${month}-01T00:00:00.000Z`);
     const end = new Date(start);
     end.setUTCMonth(end.getUTCMonth() + 1);
     const totals = emptyTotals(month);
-    const items = await Transaction.find({ date: { $gte: start, $lt: end } }).lean();
+    const items = await Transaction.find({
+      ...byOwner(userId),
+      date: { $gte: start, $lt: end },
+    }).lean();
     for (const item of items) {
       addItem(totals, item);
     }

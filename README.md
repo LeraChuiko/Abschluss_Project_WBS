@@ -15,12 +15,20 @@ API: [API_CONTRACT.md](API_CONTRACT.md)
 
 Kein Auth0. Login ist eigene Registrierung mit JWT. Es gibt **keine E-Mail-Bestätigung** — die Adresse muss nur wie eine E-Mail aussehen, ein echtes Postfach ist nicht nötig.
 
-Neue Konten sind leer. Wer die **gefüllte Demo** sehen soll, braucht ein gemeinsames Demo-Konto in der Live-Datenbank. Das gehört in diesen Abschnitt (eigene Adresse, nicht das private Gmail):
+### Demo-Konto (gemeinsames Beispielbudget)
+
+Damit Prüfer die App mit Daten sehen, ohne selbst alles einzutippen:
 
 ```
-E-Mail: (Demo-Konto eintragen)
-Passwort: (Demo-Passwort eintragen)
+E-Mail: test@demo.local
+Passwort: testdemo
 ```
+
+Dieses Konto ist **eines für alle**. Wer sich so anmeldet, sieht denselben Demo-Haushalt und kann Zahlen ändern. Das ist nur zum Anschauen, nicht für echte Finanzen.
+
+### Eigenes Konto
+
+**Registrieren** mit eigener E-Mail und eigenem Passwort. Dann ist der Haushalt leer und **nur deiner**: andere User sehen ihn nicht.
 
 Render Free kann nach Pause etwas länger starten.
 

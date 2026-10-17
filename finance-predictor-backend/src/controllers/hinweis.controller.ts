@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
+import { byOwner, ownerId, owned } from '../lib/owner.ts';
 import { Hinweis } from '../models/Hinweis.ts';
 
 export const createHinweis = async (
@@ -8,6 +9,7 @@ export const createHinweis = async (
 ): Promise<void> => {
   try {
     const doc = await Hinweis.create({
+      ...byOwner(ownerId(req)),
       title: req.body.title,
       note: req.body.note ?? '',
       month: req.body.month,
@@ -23,12 +25,12 @@ export const createHinweis = async (
 };
 
 export const listHinweise = async (
-  _req: Request,
+  req: Request,
   res: Response,
   next: NextFunction,
 ): Promise<void> => {
   try {
-    const items = await Hinweis.find().sort({ month: 1, createdAt: 1 });
+    const items = await Hinweis.find(byOwner(ownerId(req))).sort({ month: 1, createdAt: 1 });
     res.status(200).json(items);
   } catch (error) {
     next(error);
@@ -41,7 +43,7 @@ export const updateHinweis = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
-    const doc = await Hinweis.findById(req.params.id);
+    const doc = await Hinweis.findOne(owned(req, { _id: req.params.id }));
     if (!doc) {
       res.status(404).json({ message: 'Hinweis not found' });
       return;
@@ -83,7 +85,7 @@ export const deleteHinweis = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
-    const doc = await Hinweis.findByIdAndDelete(req.params.id);
+    const doc = await Hinweis.findOneAndDelete(owned(req, { _id: req.params.id }));
     if (!doc) {
       res.status(404).json({ message: 'Hinweis not found' });
       return;
