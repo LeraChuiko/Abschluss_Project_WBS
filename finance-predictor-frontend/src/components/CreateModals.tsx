@@ -1,7 +1,15 @@
 import { useState } from 'react';
 import { api } from '../api.ts';
 import { useFrei } from '../FreiContext.tsx';
-import { btnClass, currentMonthKey, fieldClass, shiftMonth, todayIsoDate, toImageSrc } from '../lib/format.ts';
+import {
+  btnClass,
+  currentMonthKey,
+  fieldClass,
+  monthLabel,
+  shiftMonth,
+  todayIsoDate,
+  toImageSrc,
+} from '../lib/format.ts';
 import type { ExpenseBlock, IncomeGroup } from '../types.ts';
 import { Modal } from './Modal.tsx';
 
@@ -47,6 +55,13 @@ export function CreateModals({ kind, onClose }: { kind: Kind; onClose: () => voi
 
 const monthShort = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
 
+const everyOptions = [
+  { n: 1, label: '1 Monat' },
+  { n: 3, label: '3 Monate' },
+  { n: 6, label: 'Halbjahr' },
+  { n: 12, label: 'Jahr' },
+];
+
 function expenseMonths(
   start: string,
   mode: 'once' | 'every' | 'custom',
@@ -54,33 +69,35 @@ function expenseMonths(
   custom: number[],
 ): string[] {
   const startM = Number(start.slice(5, 7));
-  const horizon = `${start.slice(0, 4)}-12`;
   if (mode === 'once') {
     return [start];
   }
   if (mode === 'custom') {
-    const months = custom.length > 0 ? custom : [startM];
-    const out: string[] = [];
+    const picked = custom.length > 0 ? custom : [startM];
     const startY = Number(start.slice(0, 4));
-    const endY = Number(horizon.slice(0, 4));
-    for (let year = startY; year <= endY; year += 1) {
-      for (const m of [...new Set(months)].sort((a, b) => a - b)) {
-        const key = `${year}-${String(m).padStart(2, '0')}`;
-        if (key >= start && key <= horizon) {
-          out.push(key);
-        }
-      }
-    }
-    return out;
+    return [...new Set(picked)]
+      .sort((a, b) => a - b)
+      .map((m) => {
+        const thisYear = `${startY}-${String(m).padStart(2, '0')}`;
+        return thisYear >= start ? thisYear : `${startY + 1}-${String(m).padStart(2, '0')}`;
+      })
+      .sort();
   }
   const step = Math.min(12, Math.max(1, every));
+  const yearEnd = `${start.slice(0, 4)}-12`;
+  const nextHit = shiftMonth(start, step);
+  const until = step === 1 ? yearEnd : nextHit > yearEnd ? nextHit : yearEnd;
   const list: string[] = [];
   let cursor = start;
-  while (cursor <= horizon) {
+  while (cursor <= until) {
     list.push(cursor);
     cursor = shiftMonth(cursor, step);
   }
   return list;
+}
+
+function joinMonthLabels(keys: string[]): string {
+  return keys.map(monthLabel).join(', ');
 }
 
 function ExpenseForm({
@@ -115,7 +132,7 @@ function ExpenseForm({
           return;
         }
         setSaving(true);
-        const seriesId = months.length > 1 ? crypto.randomUUID() : undefined;
+        const seriesId = mode === 'every' || months.length > 1 ? crypto.randomUUID() : undefined;
         const payload = (dateValue: string, showDate: boolean) =>
           api.createTransaction({
             type: 'expense',
@@ -168,37 +185,19 @@ function ExpenseForm({
         <option value="custom">Eigene Monate in diesem Jahr</option>
       </select>
       {mode === 'every' && (
-        <div className="space-y-2">
-          <div className="flex flex-wrap gap-2">
-            {[
-              { n: 1, label: 'Monat' },
-              { n: 3, label: 'Saison' },
-              { n: 6, label: 'Halbjahr' },
-              { n: 12, label: 'Jahr' },
-            ].map((opt) => (
-              <button
-                key={opt.n}
-                type="button"
-                className={`cursor-pointer rounded-full px-3 py-1 text-sm ${
-                  every === opt.n ? 'bg-violet-700 text-white' : 'border border-stone-300 text-stone-700 hover:bg-stone-100'
-                }`}
-                onClick={() => setEvery(opt.n)}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-          <label className="block text-sm text-stone-600">
-            Alle wie viele Monate?
-            <input
-              className={`${fieldClass} mt-1 w-full`}
-              type="number"
-              min={1}
-              max={12}
-              value={every}
-              onChange={(e) => setEvery(Number(e.target.value) || 1)}
-            />
-          </label>
+        <div className="flex flex-wrap gap-2">
+          {everyOptions.map((opt) => (
+            <button
+              key={opt.n}
+              type="button"
+              className={`cursor-pointer rounded-full px-3 py-1 text-sm ${
+                every === opt.n ? 'bg-violet-700 text-white' : 'border border-stone-300 text-stone-700 hover:bg-stone-100'
+              }`}
+              onClick={() => setEvery(opt.n)}
+            >
+              {opt.label}
+            </button>
+          ))}
         </div>
       )}
       {mode === 'custom' && (
@@ -223,13 +222,7 @@ function ExpenseForm({
           })}
         </div>
       )}
-      <p className="text-xs text-stone-500">
-        {mode === 'once'
-          ? monthShort[Number(month.slice(5, 7)) - 1]
-          : block === 'fixed'
-            ? `Wiederholt sich auch in den nächsten Jahren (${months.length} Monate geplant)`
-            : `Bis Dezember ${month.slice(0, 4)} (${months.length} Monate geplant)`}
-      </p>
+      <p className="text-xs text-stone-500">{joinMonthLabels(months)}</p>
       <label className="block text-sm text-stone-600">
         Startmonat
         <input className={`${fieldClass} mt-1 w-full`} type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
@@ -266,21 +259,25 @@ function IncomeForm({
   const [date, setDate] = useState(todayIsoDate());
   const [group, setGroup] = useState<IncomeGroup>('salary');
   const [spread, setSpread] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   return (
     <form
       className="space-y-3"
       onSubmit={(e) => {
         e.preventDefault();
-        const seriesId = crypto.randomUUID();
-        const payload = (dateValue: string) =>
+        if (saving) {
+          return;
+        }
+        setSaving(true);
+        const payload = (dateValue: string, seriesId?: string) =>
           api.createTransaction({
             type: 'income',
             title,
             amount: Number(amount),
             date: dateValue,
             incomeGroup: group,
-            seriesId,
+            ...(seriesId ? { seriesId } : {}),
           });
         const jobs = (() => {
           if (!spread) {
@@ -298,18 +295,32 @@ function IncomeForm({
             }
             cursor = shiftMonth(cursor, 1);
           }
-          return months.map((month) => payload(`${month}-${day}`));
+          const seriesId = months.length > 1 ? crypto.randomUUID() : undefined;
+          return months.map((month) => payload(`${month}-${day}`, seriesId));
         })();
 
         Promise.all(jobs)
           .then(onDone)
-          .catch((err: Error) => onError(err.message));
+          .catch((err: Error) => {
+            setSaving(false);
+            onError(err.message);
+          });
       }}
     >
       <input className={`${fieldClass} w-full`} placeholder="Name" value={title} onChange={(e) => setTitle(e.target.value)} required />
       <input className={`${fieldClass} w-full`} type="number" min="0.01" step="0.01" placeholder="Betrag" value={amount} onChange={(e) => setAmount(e.target.value)} required />
       <input className={`${fieldClass} w-full`} type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
-      <select className={`${fieldClass} w-full`} value={group} onChange={(e) => setGroup(e.target.value as IncomeGroup)}>
+      <select
+        className={`${fieldClass} w-full`}
+        value={group}
+        onChange={(e) => {
+          const next = e.target.value as IncomeGroup;
+          setGroup(next);
+          if (next === 'freelance' || next === 'gift') {
+            setSpread(false);
+          }
+        }}
+      >
         <option value="salary">Gehalt / Job</option>
         <option value="business">Business</option>
         <option value="investment">Investitionen</option>
@@ -325,8 +336,8 @@ function IncomeForm({
         Auf folgende Monate verteilen
       </label>
       <div className="flex justify-end pt-1">
-        <button className={btnClass} type="submit">
-          Speichern
+        <button className={btnClass} type="submit" disabled={saving}>
+          {saving ? 'Speichern…' : 'Speichern'}
         </button>
       </div>
     </form>
@@ -488,37 +499,19 @@ function HinweisForm({
         <option value="custom">Eigene Monate im Jahr</option>
       </select>
       {mode === 'every' && (
-        <div className="space-y-2">
-          <div className="flex flex-wrap gap-2">
-            {[
-              { n: 12, label: 'Jahr' },
-              { n: 6, label: 'Halbjahr' },
-              { n: 3, label: 'Saison' },
-              { n: 1, label: 'Monat' },
-            ].map((opt) => (
-              <button
-                key={opt.n}
-                type="button"
-                className={`cursor-pointer rounded-full px-3 py-1 text-sm ${
-                  every === opt.n ? 'bg-violet-700 text-white' : 'border border-stone-300 text-stone-700 hover:bg-stone-100'
-                }`}
-                onClick={() => setEvery(opt.n)}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-          <label className="block text-sm text-stone-600">
-            Alle wie viele Monate?
-            <input
-              className={`${fieldClass} mt-1 w-full`}
-              type="number"
-              min={1}
-              max={12}
-              value={every}
-              onChange={(e) => setEvery(Number(e.target.value) || 1)}
-            />
-          </label>
+        <div className="flex flex-wrap gap-2">
+          {everyOptions.map((opt) => (
+            <button
+              key={opt.n}
+              type="button"
+              className={`cursor-pointer rounded-full px-3 py-1 text-sm ${
+                every === opt.n ? 'bg-violet-700 text-white' : 'border border-stone-300 text-stone-700 hover:bg-stone-100'
+              }`}
+              onClick={() => setEvery(opt.n)}
+            >
+              {opt.label}
+            </button>
+          ))}
         </div>
       )}
       {mode === 'custom' && (

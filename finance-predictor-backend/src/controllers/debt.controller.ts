@@ -1,4 +1,3 @@
-// CRUD functions for debts. Remaining amount is changed via update, not a cron job.
 import type { Request, Response, NextFunction } from 'express';
 import { Debt } from '../models/Debt.ts';
 import { Transaction } from '../models/Transaction.ts';

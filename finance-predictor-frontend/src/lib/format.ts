@@ -129,6 +129,20 @@ export function isEditableMonth(monthOrIso: string): boolean {
   return monthOrIso.slice(0, 7) >= currentMonthKey();
 }
 
+export function goalImageFallback(title: string): string {
+  const key = title.toLowerCase();
+  if (/(auto|wagen|car)/.test(key)) {
+    return '/goals/auto.jpg';
+  }
+  if (/(urlaub|reise|griechen)/.test(key)) {
+    return '/goals/urlaub.jpg';
+  }
+  if (/(macbook|laptop)/.test(key)) {
+    return '/goals/macbook.jpg';
+  }
+  return '';
+}
+
 export function toImageSrc(url: string): string {
   const found = url.match(/https?:\/\/[^\s]+/i)?.[0] ?? url.trim();
   if (found.includes('images.unsplash.com')) {

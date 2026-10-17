@@ -10,6 +10,7 @@ export type Transaction = {
   incomeGroup?: IncomeGroup;
   expenseBlock?: ExpenseBlock;
   importantDate?: boolean;
+  seriesId?: string;
   debtId?: string;
   savingsGoalId?: string;
 };
@@ -38,7 +39,12 @@ export type SavingsGoal = {
   title: string;
   targetAmount: number;
   currentAmount: number;
+  creditedAmount?: number;
+  noBudget?: boolean;
+  archived?: boolean;
   imageUrl?: string;
+  createdAt?: string;
+  completedAt?: string;
 };
 
 export type Hinweis = {

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './AuthContext.tsx';
 import { CreateModals } from './components/CreateModals.tsx';
+import { GreetingBar } from './components/GreetingBar.tsx';
 import { resetToCurrentYear } from './components/PeriodFilter.tsx';
 import { FreiProvider, useFrei } from './FreiContext.tsx';
 import { euro } from './lib/format.ts';
@@ -44,26 +45,13 @@ function actionForPath(
 function Shell() {
   const { pathname } = useLocation();
   const { frei } = useFrei();
-  const { user, logout } = useAuth();
   const action = actionForPath(pathname);
   const [open, setOpen] = useState(false);
-  const helloName = user?.name?.trim() || user?.email?.split('@')[0] || 'Valeriia';
 
   return (
     <div className="min-h-screen">
       <header className="sticky top-0 z-30 border-b border-stone-200 bg-[#f6f3ee]/95 backdrop-blur">
-        <div className="flex w-full items-center justify-between gap-3 border-b border-stone-200 bg-white px-4 py-2.5 text-sm sm:px-6">
-          <p className="text-stone-700">
-            Hallo {helloName}. Du bist nah an deinem Ziel.
-          </p>
-          <button
-            type="button"
-            className="shrink-0 cursor-pointer rounded-full border border-stone-300 px-3 py-1.5 font-semibold text-stone-700 hover:bg-stone-100 active:bg-stone-200"
-            onClick={logout}
-          >
-            Abmelden
-          </button>
-        </div>
+        <GreetingBar />
         <div className="mx-auto max-w-6xl px-4 py-3">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <Link to="/" className="block leading-tight" onClick={resetToCurrentYear}>
@@ -78,6 +66,7 @@ function Shell() {
                   key={link.to}
                   to={link.to}
                   end={link.to === '/'}
+                  onClick={resetToCurrentYear}
                   className={({ isActive }) =>
                     `rounded-full px-3 py-1.5 text-sm ${
                       isActive
