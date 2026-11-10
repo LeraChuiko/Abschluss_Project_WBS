@@ -40,3 +40,5 @@ Die Anwendung ist in Client und Server getrennt:
 - Environment: `VITE_API_URL=https://familien-finance-api.onrender.com/api`  
 
 Redirects (SPA): `/*` → `/index.html`.
+
+💼 **[Connect with me on LinkedIn](https://www.linkedin.com/in/valeriia-chuiko/)**
