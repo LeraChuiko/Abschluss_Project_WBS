@@ -24,7 +24,6 @@ Ermöglicht das Verwalten von Einnahmen, Fixkosten, Ratenzahlungen und Sparziele
 - **Budgetrechner & Prognosen**: Automatische Berechnung von monatlichen Überschüssen und Sparraten.
 - **Benutzerverwaltung**: Sicheres Login und Registrierung ohne Drittanbieter-Abhängigkeiten (Auth0).
 - **Isolierte Datenhaltung**: Jeder registrierte Nutzer greift ausschließlich auf seinen eigenen Haushalt zu.
-- **Responsive UI**: Optimiert für Desktop und mobile Endgeräte.
 
 ## ⚙️ Architektur & API
 
