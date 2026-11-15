@@ -7,11 +7,13 @@ import dashboardRoutes from './dashboard.routes.ts';
 import debtRoutes from './debt.routes.ts';
 import savingsGoalRoutes from './savingsGoal.routes.ts';
 import hinweisRoutes from './hinweis.routes.ts';
+import aiRoutes from './ai.routes.ts';
 
 const router = Router();
 
 router.get('/health', getHealth);
 router.use('/auth', authRoutes);
+router.use('/ai', requireAuth, aiRoutes);
 router.use('/transactions', requireAuth, transactionRoutes);
 router.use('/dashboard', requireAuth, dashboardRoutes);
 router.use('/debts', requireAuth, debtRoutes);

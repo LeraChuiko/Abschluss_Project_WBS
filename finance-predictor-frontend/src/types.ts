@@ -50,6 +50,17 @@ export type SavingsGoal = {
   completedAt?: string;
 };
 
+export type AiRiskLevel = 'low' | 'medium' | 'high';
+
+export type AiForecast = {
+  projectedYearEndFreeFunds: number;
+  summary: string;
+  riskLevel: AiRiskLevel;
+  riskExplanation: string;
+  recommendations: string[];
+  usedDemoData?: boolean;
+};
+
 export type Hinweis = {
   _id: string;
   userId?: string;

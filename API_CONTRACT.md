@@ -12,6 +12,7 @@ Budget data is per account: `Transaction`, `Debt`, `SavingsGoal` and `Hinweis` s
 | Login | `POST /auth/login` | no | `{ "email", "password" }` | `200` `{ token, user }` |
 | Me | `GET /auth/me` | yes | — | `200` user |
 | Dashboard | `GET /dashboard?month=YYYY-MM` or `?year=YYYY` | yes | — | `200` totals, or `{ year, months[] }` |
+| AI year-end forecast | `POST /ai/analyze` | yes | `{ "useDemoData"?: boolean }` | `200` `{ projectedYearEndFreeFunds, summary, riskLevel, riskExplanation, recommendations, usedDemoData }` |
 | List transactions | `GET /transactions?month=YYYY-MM` or `?year=YYYY` | yes | month/year optional | `200` array |
 | Create transaction | `POST /transactions` | yes | income or expense | `201` |
 | Patch transaction | `PATCH /transactions/:id` | yes | fields | `200` |

@@ -144,4 +144,11 @@ export const api = {
 
   deleteHinweis: (id: string) =>
     fetch(`${API}/hinweise/${id}`, { method: 'DELETE', headers: headers() }).then((res) => parse(res)),
+
+  analyzeFinances: (useDemoData = false) =>
+    fetch(`${API}/ai/analyze`, {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify({ useDemoData }),
+    }).then((res) => parse(res)),
 };

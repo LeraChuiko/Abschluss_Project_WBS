@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api.ts';
 import { useFrei } from '../FreiContext.tsx';
+import { AiFinancialAdvisor } from '../components/AiFinancialAdvisor.tsx';
 import { AmountEdit } from '../components/AmountEdit.tsx';
 import { PeriodFilter, useCalendarPeriod } from '../components/PeriodFilter.tsx';
 import { euro, monthName, isEditableMonth, currentMonthKey, firstSeenRank, compareFirstSeen } from '../lib/format.ts';
@@ -198,6 +199,8 @@ export function DashboardPage() {
           </div>
         </div>
       </article>
+
+      <AiFinancialAdvisor />
 
       <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
         {tables.map((table) => (
